@@ -676,9 +676,7 @@ def test_otio_to_fountain_writes_the_script_from_otio_text():
     assert parsed["title_page"]["Title"] == "Test Film"
     assert [s["heading"] for s in parsed["scenes"]] == ["INT. ROOM - DAY", "EXT. YARD - NIGHT"]
     assert node.parameter_output_values["fountain_file"] == ""
-    assert "Title" in node.get_parameter_value("result_details") or "Scenes" in node.get_parameter_value(
-        "result_details"
-    )
+    assert "Wrote 2 scenes" in node.get_parameter_value("result_details")
 
 
 def test_otio_to_fountain_reads_a_file(tmp_path: Path):

@@ -182,7 +182,7 @@ class ScriptToTimeline(SuccessFailureNode):
     def validate_before_node_run(self) -> list[Exception] | None:
         exceptions = list(super().validate_before_node_run() or [])
         script = self.get_parameter_value("script")
-        if not isinstance(script, dict) or "elements" not in script:
+        if not isinstance(script, dict) or "elements" not in script or "scenes" not in script:
             exceptions.append(
                 NodeError("There is no script to build from. Connect 'Script' from Load Fountain Script.")
             )
@@ -244,7 +244,7 @@ class ScriptToTimeline(SuccessFailureNode):
             )
             otio_path = to_project_path(otio_path)
             output_directory = to_project_path(folder)
-            details += f" Saved {otio_path}"
+            details += f" Saved {otio_path}."
             if not output_directory.startswith("{"):
                 details += f" The folder is shown as an absolute path. {unmapped_reason(output_directory)}"
         self.parameter_output_values["otio"] = to_json(model)

@@ -96,3 +96,8 @@ def test_real_script_v002_sequences_and_shots():
     assert "EXTREME WIDE SHOT" in cues
     assert all(s["seconds"] > 0 for s in shots)
     assert sum(len(s["dialogue"]) for s in shots) == 34
+
+
+def test_a_note_in_its_own_paragraph_reaches_the_next_shot():
+    shots = breakdown(parse("INT. ROOM - DAY\n\n[[scene note]]\n\nRain falls.\n\n[[late note]]\n"))["shots"]
+    assert shots[0]["notes"] == ["scene note", "late note"]

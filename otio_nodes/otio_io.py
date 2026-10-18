@@ -138,6 +138,8 @@ def otio_to_model(timeline: otio.schema.Timeline) -> dict[str, Any]:
     own = _plain(timeline.metadata.get(METADATA_KEY, {}))
     rate = float(own.get("rate") or _first_rate(timeline) or 24.0)
     warnings: list[str] = []
+    if len(timeline.tracks.markers):
+        warnings.append(f"Dropped {len(timeline.tracks.markers)} marker(s) set on the whole timeline.")
     used_ids: set[str] = set()
 
     def unique(wanted: str | None, fallback: str) -> str:
@@ -161,7 +163,13 @@ def otio_to_model(timeline: otio.schema.Timeline) -> dict[str, Any]:
         for child in track:
             if isinstance(child, otio.schema.Clip):
                 clip_count += 1
-                clip_model = _from_otio_clip(child, rate, f"clip-{clip_count}")
+                if len(child.markers):
+                    warnings.append(f"Dropped {len(child.markers)} marker(s) on clip '{child.name}'.")
+                try:
+                    clip_model = _from_otio_clip(child, rate, f"clip-{clip_count}")
+                except otio.exceptions.OTIOError as e:
+                    warnings.append(f"Skipped clip '{child.name}' on track '{track.name}': {e}")
+                    continue
                 clip_model["id"] = unique(clip_model["id"], f"clip-{clip_count}")
                 clips.append(clip_model)
             elif isinstance(child, otio.schema.Transition):

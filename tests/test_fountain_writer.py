@@ -187,3 +187,10 @@ def test_the_real_script_comes_back_with_everything_that_was_said():
     back = parse(write_fountain(build_model(breakdown(original))))
     assert facts(back) == facts(original)
     assert len([e for e in back["elements"] if e["type"] == "dialogue"]) == 34
+
+
+def test_a_forced_character_name_is_written_back_with_its_at_sign():
+    text = write_fountain(build_model(breakdown(parse("INT. ROOM - DAY\n\n@McCLANE\nYippee.\n"))))
+    assert "@McCLANE\nYippee." in text
+    again = parse(text)
+    assert [e["character"] for e in again["elements"] if e["type"] == "dialogue"] == ["McCLANE"]

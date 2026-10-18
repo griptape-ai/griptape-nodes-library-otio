@@ -467,3 +467,19 @@ test('only unmuted, enabled, linked audio clips under the playhead are heard', (
   m.previews['{inputs}/plate.mov'] = 'http://x/plate.mp4';
   assert.deepEqual(audibleAt(m, shot.start + 1), [], 'video tracks are not played as sound');
 });
+
+test('a linked clip cannot be trimmed past the end of its file', () => {
+  const linked = clip('a', 0, 24);
+  linked.media = { url: '/plate.mov', start: 10, duration: 50, key: '' };
+  const model = { rate: 24, tracks: [{ id: 't', name: 'T', kind: 'video', role: 'shots', clips: [linked] }], markers: [] };
+  const trimmed = trimClip(model, 'a', 'end', 500);
+  assert.equal(findClip(trimmed, 'a').clip.duration, 40);
+  assert.ok(validate({ ...model, tracks: [{ ...model.tracks[0], clips: [{ ...linked, duration: 41 }] }] }).length > 0);
+});
+
+test('a placeholder slate may be outgrown, because saving makes a new one', () => {
+  const slate = clip('a', 0, 24);
+  slate.media = { url: 'file:///s.mov', start: 0, duration: 24, key: 'griptape:slate:abc' };
+  const model = { rate: 24, tracks: [{ id: 't', name: 'T', kind: 'video', role: 'shots', clips: [slate] }], markers: [] };
+  assert.equal(findClip(trimClip(model, 'a', 'end', 100), 'a').clip.duration, 100);
+});

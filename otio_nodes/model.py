@@ -26,6 +26,7 @@ SFX_ROLE = "sfx"
 AUDIO_ROLE = "audio"
 ROLES = (SHOTS_ROLE, DIALOGUE_ROLE, SFX_ROLE, AUDIO_ROLE)
 KINDS = ("video", "audio")
+MEDIA_KEY_PREFIX = "griptape:"
 
 SHOT_COLORS = {"INT": "#d9a441", "EXT": "#4f9d69", "NIGHT": "#4a5a9a", "OTHER": "#8a8a8a"}
 SPEAKER_PALETTE = ["#c8553d", "#3d7ec8", "#8f5fc0", "#3aa6a0", "#c08a3a", "#6e8f3a"]
@@ -186,7 +187,14 @@ def validate_model(model: dict[str, Any]) -> None:
                 problems.append(f"{label}: overlaps the previous clip by {end - start} frames")
             end = max(end, start + duration)
             media = clip.get("media")
-            if media and media.get("duration") is not None and media["start"] + duration > media["duration"]:
+            owned = str(media.get("key", "")).startswith(MEDIA_KEY_PREFIX) if media else False
+            # Placeholder media is remade when a clip outgrows it, so only linked files can be too short.
+            if (
+                media
+                and not owned
+                and media.get("duration") is not None
+                and media["start"] + duration > media["duration"]
+            ):
                 problems.append(f"{label}: its media is {media['duration']} frames, too short for the clip")
             if clip.get("id") in seen_ids:
                 problems.append(f"{label}: duplicate id '{clip.get('id')}'")

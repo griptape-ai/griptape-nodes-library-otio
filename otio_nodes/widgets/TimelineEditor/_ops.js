@@ -65,6 +65,9 @@ export function validate(model) {
       if (!Number.isInteger(clip.start) || !Number.isInteger(clip.duration)) problems.push(`${clip.name}: not whole frames`);
       if (clip.start < 0 || clip.duration < 1) problems.push(`${clip.name}: bad start or duration`);
       if (clip.start < end) problems.push(`${clip.name}: overlaps the previous clip`);
+      if (isLinked(clip.media) && Number.isInteger(clip.media.duration) && clip.media.start + clip.duration > clip.media.duration) {
+        problems.push(`${clip.name}: its media is too short for the clip`);
+      }
       if (ids.has(clip.id)) problems.push(`${clip.name}: duplicate id`);
       ids.add(clip.id);
       end = Math.max(end, endOf(clip));
@@ -154,6 +157,9 @@ export function trimClip(model, id, edge, frame, opts = {}) {
   }
 
   let end = Math.max(clip.start + 1, target);
+  if (isLinked(clip.media) && Number.isInteger(clip.media.duration)) {
+    end = Math.min(end, clip.start + clip.media.duration - clip.media.start); // cannot run past the file's end
+  }
   const rippling = opts.ripple && track.role === ROLE_SHOTS;
   if (!rippling && nextStart !== Infinity) end = Math.min(end, nextStart);
   const delta = end - oldEnd;

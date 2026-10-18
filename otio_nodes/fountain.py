@@ -49,7 +49,10 @@ def _strip_boneyard_and_notes(text: str) -> tuple[str, list[int], list[dict[str,
     notes = [
         {"text": " ".join(m.group(1).split()), "line": line_at[m.start()]} for m in NOTE.finditer(_blank_boneyard(text))
     ]
-    spans = sorted([m.span() for m in BONEYARD.finditer(text)] + _note_spans(text))
+    spans = [
+        _with_own_line(text, start, end)
+        for start, end in sorted([m.span() for m in BONEYARD.finditer(text)] + _note_spans(text))
+    ]
     out: list[str] = []
     origins: list[int] = []
     pos = 0
@@ -62,6 +65,14 @@ def _strip_boneyard_and_notes(text: str) -> tuple[str, list[int], list[dict[str,
     out.append(text[pos:])
     origins.extend(line_at[pos:])
     return "".join(out), origins, notes
+
+
+def _with_own_line(text: str, start: int, end: int) -> tuple[int, int]:
+    """Widen a removed span to take its newline when it fills a whole line, so the line does not become a blank one."""
+    alone_before = start == 0 or text[start - 1] == "\n"
+    if alone_before and end < len(text) and text[end] == "\n":
+        return start, end + 1
+    return start, end
 
 
 def _blank_boneyard(text: str) -> str:

@@ -5,7 +5,7 @@ and any script notes. Each dialogue clip has the speaker, the line and any paren
 the timeline. Timing and sound clips have no place in Fountain, so they are only written, as notes, when asked.
 
 What cannot be recovered: the order of action and dialogue inside one shot (action is written first), the blank lines
-and spacing of the original, and "(CONT'D)" markers. Shots and lines that are disabled in the timeline are left out.
+and spacing of the original, "(CONT'D)" markers, and dual dialogue. Shots and lines that are disabled in the timeline are left out.
 """
 
 from __future__ import annotations
@@ -79,7 +79,8 @@ def _dialogue(clip: dict[str, Any]) -> list[str]:
     meta = clip.get("meta", {})
     name = str(meta.get("character") or clip.get("name", "")).strip()
     extension = f" ({meta['extension']})" if meta.get("extension") else ""
-    lines = [f"{name}{extension}"]
+    forced = "@" if name != name.upper() else ""  # a name that is not in capitals has to be forced to read as a speaker
+    lines = [f"{forced}{name}{extension}"]
     lines.extend(f"({p})" for p in meta.get("parentheticals", []))
     lines.append(str(clip.get("description") or clip.get("name", "")).strip())
     return lines

@@ -220,3 +220,12 @@ def test_real_script_round_trips_and_has_a_sensible_length(tmp_path):
     assert 60 < seconds < 400
     path = write_otio(model, tmp_path / "jonh_v001.otio")
     assert read_otio(path) == model
+
+
+def test_markers_on_clips_and_on_the_timeline_are_reported_when_dropped():
+    timeline = model_to_otio(make_model())
+    timeline.tracks[0][0].markers.append(otio.schema.Marker(name="clip marker"))
+    timeline.tracks.markers.append(otio.schema.Marker(name="timeline marker"))
+    warnings = otio_to_model(timeline)["warnings"]
+    assert any("clip marker" not in w and "marker(s) on clip" in w for w in warnings)
+    assert any("whole timeline" in w for w in warnings)

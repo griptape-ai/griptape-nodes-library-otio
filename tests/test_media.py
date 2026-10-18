@@ -7,7 +7,7 @@ import pytest
 
 from otio_nodes.breakdown import breakdown
 from otio_nodes.fountain import parse
-from otio_nodes.media import FfmpegEncoder, draw_slate, ensure_media, slate_text, url_to_path
+from otio_nodes.media import FfmpegEncoder, draw_slate, ensure_media, link_media, slate_text, url_to_path
 from otio_nodes.model import build_model, validate_model
 from otio_nodes.otio_io import from_json, to_json
 
@@ -161,11 +161,28 @@ def test_otio_clips_use_external_references(tmp_path):
     assert all(isinstance(c.media_reference, otio.schema.ExternalReference) for c in timeline.find_clips())
 
 
-def test_media_that_is_too_short_fails_validation(tmp_path):
+def test_a_slate_the_clip_outgrew_is_not_a_validation_error(tmp_path):
     model = ensure_media(make_model(), tmp_path / "media", handle_seconds=0.0, encoder=FakeEncoder())
-    clips(model, "shots")[0]["duration"] += 10
-    with pytest.raises(ValueError, match="too short"):
-        validate_model(model)
+    clips(model, "shots")[-1]["duration"] += 10
+    validate_model(model)  # saving remakes the slate, so it must not stop the save
+
+
+def test_saving_remakes_a_slate_the_clip_outgrew(tmp_path):
+    from otio_nodes.node_helpers import save_timeline
+
+    _, model = save_timeline(make_model(), tmp_path, handle_seconds=1.0, encoder=FakeEncoder())
+    shot = clips(model, "shots")[-1]
+    shot["duration"] += 100
+    _, saved = save_timeline(model, tmp_path, handle_seconds=1.0, encoder=FakeEncoder())
+    media = clips(saved, "shots")[-1]["media"]
+    assert media["start"] + shot["duration"] <= media["duration"]
+
+
+def test_linked_length_is_not_cut_short_by_float_error():
+    model = linked_model("/plate.mov")
+    model["rate"] = 25.0
+    linked = link_media(model, lambda url: Path(__file__), lambda path: 4.6)  # 4.6 * 25 is 114.99999999999999
+    assert clips(linked, "shots")[0]["media"]["duration"] == 115
 
 
 def _ffprobe() -> str | None:

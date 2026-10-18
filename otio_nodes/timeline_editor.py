@@ -81,10 +81,13 @@ class TimelineEditor(SuccessFailureNode):
     else, including when the timeline came in as text. The file is replaced each time.
     """
 
+    RELOAD_CONFIRM_SECONDS = 20.0
+
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._preview_lock = threading.RLock()
         self._preview_jobs: set[Path] = set()
+        self._reload_armed_at: float | None = None
         self.add_parameter(
             ParameterString(
                 name="source",
@@ -378,8 +381,6 @@ class TimelineEditor(SuccessFailureNode):
         self.publish_update_to_parameter("edited_timeline", timeline)
         return True
 
-    RELOAD_CONFIRM_SECONDS = 20.0
-
     def _has_edits(self) -> bool:
         """True when the editor holds something other than what a reload would bring back."""
         current = self.get_parameter_value("edited_timeline")
@@ -396,7 +397,7 @@ class TimelineEditor(SuccessFailureNode):
     def _on_reload_clicked(self, button: Button, button_details: ButtonDetailsMessagePayload) -> NodeMessageResult:
         # A node cannot open a dialog, so the warning is a second click: the first one says what will be lost and turns
         # the button red, and a second click soon after goes ahead.
-        armed = getattr(self, "_reload_armed_at", None)
+        armed = self._reload_armed_at
         confirmed = armed is not None and time.monotonic() - armed < self.RELOAD_CONFIRM_SECONDS
         if not confirmed and self._has_edits():
             self._reload_armed_at = time.monotonic()
