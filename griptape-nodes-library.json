@@ -1,0 +1,94 @@
+{
+    "name": "Griptape Nodes OpenTimelineIO Library",
+    "library_schema_version": "0.14.0",
+    "metadata": {
+        "author": "Griptape",
+        "description": "Turn a Fountain script into an OpenTimelineIO timeline. Default clip lengths come from the dialogue, and a timeline widget lets you adjust the timing before writing the OTIO.",
+        "library_version": "0.1.0",
+        "engine_version": "0.104.0",
+        "tags": [
+            "Griptape",
+            "OpenTimelineIO",
+            "Editorial",
+            "Script"
+        ],
+        "dependencies": {
+            "pip_dependencies": [
+                "OpenTimelineIO>=0.17.0"
+            ]
+        }
+    },
+    "widgets": [
+        {
+            "name": "TimelineEditor",
+            "path": "otio_nodes/widgets/TimelineEditor/TimelineEditor.js",
+            "description": "NLE-style timeline for shots, dialogue, SFX and audio: move, trim, split, snap and ripple clips."
+        }
+    ],
+    "categories": [
+        {
+            "timeline": {
+                "color": "border-amber-500",
+                "title": "Timeline",
+                "description": "Nodes for scripts, timelines and OpenTimelineIO files",
+                "icon": "GanttChart"
+            }
+        }
+    ],
+    "nodes": [
+        {
+            "class_name": "LoadFountainScript",
+            "file_path": "otio_nodes/load_fountain_script.py",
+            "metadata": {
+                "category": "timeline",
+                "description": "Read a Fountain screenplay and break it into scenes, action, dialogue and transitions.",
+                "display_name": "Load Fountain Script"
+            }
+        },
+        {
+            "class_name": "ScriptToTimeline",
+            "file_path": "otio_nodes/script_to_timeline.py",
+            "metadata": {
+                "category": "timeline",
+                "description": "Turn a parsed script into a timeline of shots and sequences, with lengths from the dialogue.",
+                "display_name": "Script to Timeline"
+            }
+        },
+        {
+            "class_name": "WriteOTIO",
+            "file_path": "otio_nodes/write_otio.py",
+            "metadata": {
+                "category": "timeline",
+                "description": "Save a timeline as an OpenTimelineIO (.otio) file.",
+                "display_name": "Write OTIO"
+            }
+        },
+        {
+            "class_name": "ReadOTIO",
+            "file_path": "otio_nodes/read_otio.py",
+            "metadata": {
+                "category": "timeline",
+                "description": "Read an OpenTimelineIO (.otio) file into an editable timeline.",
+                "display_name": "Read OTIO"
+            }
+        },
+        {
+            "class_name": "TimelineEditor",
+            "file_path": "otio_nodes/timeline_editor.py",
+            "metadata": {
+                "category": "timeline",
+                "description": "Edit a timeline's shots, dialogue and sound clips on a timeline widget.",
+                "display_name": "Timeline Editor"
+            }
+        },
+        {
+            "class_name": "OTIOToFountain",
+            "file_path": "otio_nodes/otio_to_fountain.py",
+            "metadata": {
+                "category": "timeline",
+                "description": "Turn a timeline back into a Fountain script, with edits carried over.",
+                "display_name": "OTIO to Fountain"
+            }
+        }
+    ]
+}
