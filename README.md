@@ -2,6 +2,8 @@
 
 Turn a Fountain script into an OpenTimelineIO (OTIO) timeline. Default clip lengths come from the amount of dialogue, and a timeline widget lets you adjust the timing before the OTIO is written.
 
+<img width="1767" height="1145" alt="image" src="https://github.com/user-attachments/assets/6e228e61-983b-4b12-bd6d-d208757bc74e" />
+
 ## Nodes
 
 OpenTimelineIO is plain text (JSON), so the nodes pass the timeline around as OTIO text. A file is only used at the ends: Read OTIO and the Timeline Editor can read one, and Write OTIO, Script to Timeline and the Timeline Editor can save one.
