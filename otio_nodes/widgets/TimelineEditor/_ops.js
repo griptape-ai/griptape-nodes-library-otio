@@ -73,6 +73,10 @@ export function validate(model) {
   return problems;
 }
 
+// A linked clip cannot run past the end of its file, when the file's length is known.
+const fitsMedia = (clip) =>
+  !isLinked(clip.media) || !Number.isInteger(clip.media.duration) || clip.media.start + clip.duration <= clip.media.duration;
+
 const checked = (model) => (validate(model).length === 0 ? model : null);
 
 function dialogueOf(model, shotId) {
@@ -154,6 +158,9 @@ export function trimClip(model, id, edge, frame, opts = {}) {
   }
 
   let end = Math.max(clip.start + 1, target);
+  if (isLinked(clip.media) && Number.isInteger(clip.media.duration)) {
+    end = Math.min(end, clip.start + clip.media.duration - clip.media.start); // cannot run past the file's end
+  }
   const rippling = opts.ripple && track.role === ROLE_SHOTS;
   if (!rippling && nextStart !== Infinity) end = Math.min(end, nextStart);
   const delta = end - oldEnd;
@@ -290,6 +297,7 @@ export function updateClip(model, id, patch) {
     if (!(key in patch)) continue;
     found.clip[key] = key === 'start' || key === 'duration' ? Math.round(patch[key]) : patch[key];
   }
+  if ('duration' in patch && !fitsMedia(found.clip)) return null; // other edits to an over-long clip are still allowed
   return checked(next);
 }
 

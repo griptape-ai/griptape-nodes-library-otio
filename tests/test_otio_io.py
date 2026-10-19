@@ -10,11 +10,8 @@ from otio_nodes.otio_io import (
     METADATA_KEY,
     from_json,
     model_to_otio,
-    next_version_path,
     otio_to_model,
-    read_otio,
     to_json,
-    write_otio,
 )
 
 TEXT = """Title: Test
@@ -189,34 +186,78 @@ def test_other_rates_are_rescaled():
     assert otio_to_model(timeline)["tracks"][0]["clips"][0]["duration"] == 48
 
 
-def test_write_refuses_to_overwrite_and_reads_back(tmp_path):
+def test_a_saved_timeline_reads_back_the_same():
     model = make_model()
-    path = write_otio(model, tmp_path / "out_v001.otio")
-    assert path.exists()
-    with pytest.raises(FileExistsError):
-        write_otio(model, path)
-    assert read_otio(path) == model
+    assert from_json(to_json(model)) == model
 
 
-def test_next_version_path(tmp_path):
-    assert next_version_path(tmp_path, "film").name == "film_v001.otio"
-    (tmp_path / "film_v001.otio").write_text("x")
-    (tmp_path / "film_v002.otio").write_text("x")
-    assert next_version_path(tmp_path, "film").name == "film_v003.otio"
-
-
-def test_invalid_model_is_rejected_before_writing(tmp_path):
+def test_invalid_model_is_rejected_before_writing():
     model = make_model()
     model["tracks"][0]["clips"][0]["duration"] = 0
     with pytest.raises(ValueError, match="Invalid timeline"):
-        write_otio(model, tmp_path / "bad.otio")
-    assert not (tmp_path / "bad.otio").exists()
+        to_json(model)
 
 
 @pytest.mark.skipif(not SCRIPT.exists(), reason="project script not available")
-def test_real_script_round_trips_and_has_a_sensible_length(tmp_path):
+def test_real_script_round_trips_and_has_a_sensible_length():
     model = make_model(SCRIPT.read_text(encoding="utf-8"))
     seconds = total_frames(model) / model["rate"]
     assert 60 < seconds < 400
-    path = write_otio(model, tmp_path / "jonh_v001.otio")
-    assert read_otio(path) == model
+    assert from_json(to_json(model)) == model
+
+
+def test_markers_on_clips_and_on_the_timeline_are_reported_when_dropped():
+    timeline = model_to_otio(make_model())
+    timeline.tracks[0][0].markers.append(otio.schema.Marker(name="clip marker"))
+    timeline.tracks.markers.append(otio.schema.Marker(name="timeline marker"))
+    warnings = otio_to_model(timeline)["warnings"]
+    assert any(w.startswith("Dropped 1 marker(s) on clip") for w in warnings)
+    assert any("whole timeline" in w for w in warnings)
+
+
+def test_foreign_media_start_counts_from_the_first_frame_of_the_file():
+    rate = 24.0
+    reference = otio.schema.ExternalReference(
+        target_url="file:///plate.mov",
+        available_range=otio.opentime.TimeRange(
+            otio.opentime.RationalTime(86400, rate), otio.opentime.RationalTime(240, rate)
+        ),
+    )
+    clip = otio.schema.Clip(
+        name="plate",
+        media_reference=reference,
+        source_range=otio.opentime.TimeRange(
+            otio.opentime.RationalTime(86424, rate), otio.opentime.RationalTime(48, rate)
+        ),
+    )
+    track = otio.schema.Track(name="V", kind=otio.schema.TrackKind.Video)
+    track.append(clip)
+    timeline = otio.schema.Timeline()
+    timeline.tracks.append(track)
+    media = otio_to_model(timeline)["tracks"][0]["clips"][0]["media"]
+    assert media["start"] == 24
+    assert media["duration"] == 240
+
+
+def test_a_clip_that_starts_before_its_media_gets_a_zero_start_and_a_warning():
+    rate = 24.0
+    reference = otio.schema.ExternalReference(
+        target_url="file:///plate.mov",
+        available_range=otio.opentime.TimeRange(
+            otio.opentime.RationalTime(100, rate), otio.opentime.RationalTime(240, rate)
+        ),
+    )
+    clip = otio.schema.Clip(
+        name="early",
+        media_reference=reference,
+        source_range=otio.opentime.TimeRange(
+            otio.opentime.RationalTime(90, rate), otio.opentime.RationalTime(24, rate)
+        ),
+    )
+    track = otio.schema.Track(name="V", kind=otio.schema.TrackKind.Video)
+    track.append(clip)
+    timeline = otio.schema.Timeline()
+    timeline.tracks.append(track)
+    model = otio_to_model(timeline)
+    assert model["tracks"][0]["clips"][0]["media"]["start"] == 0
+    assert any("starts before its media" in w for w in model["warnings"])

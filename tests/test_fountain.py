@@ -175,3 +175,28 @@ def test_real_script_v002():
         "DAD",
     }
     assert sum(1 for e in result["elements"] if e["type"] == "transition") == 6
+
+
+def test_a_note_on_its_own_line_does_not_split_the_block():
+    parsed = parse("JOHN\nHello.\n[[check this]]\nMore.\n")
+    assert [e["type"] for e in parsed["elements"]] == ["dialogue"]
+    assert parsed["elements"][0]["text"] == "Hello. More."
+    assert parsed["elements"][0]["notes"] == ["check this"]
+
+
+def test_a_boneyard_on_its_own_line_does_not_split_the_block():
+    parsed = parse("Rain falls.\n/* cut this */\nThunder.\n")
+    assert [e["type"] for e in parsed["elements"]] == ["action"]
+    assert parsed["elements"][0]["text"] == "Rain falls. Thunder."
+
+
+def test_an_indented_note_line_does_not_split_the_block():
+    parsed = parse("JOHN\nHello.\n   [[check this]]  \nMore.\n")
+    assert [e["type"] for e in parsed["elements"]] == ["dialogue"]
+    assert parsed["elements"][0]["text"] == "Hello. More."
+
+
+def test_a_line_of_only_notes_and_boneyard_does_not_split_the_block():
+    parsed = parse("JOHN\nHello.\n[[a]] [[b]]\nMore.\n/* x */ [[c]]\nEnd.\n")
+    assert [e["type"] for e in parsed["elements"]] == ["dialogue"]
+    assert parsed["elements"][0]["text"] == "Hello. More. End."

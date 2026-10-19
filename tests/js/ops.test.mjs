@@ -467,3 +467,37 @@ test('only unmuted, enabled, linked audio clips under the playhead are heard', (
   m.previews['{inputs}/plate.mov'] = 'http://x/plate.mp4';
   assert.deepEqual(audibleAt(m, shot.start + 1), [], 'video tracks are not played as sound');
 });
+
+test('a linked clip cannot be trimmed past the end of its file', () => {
+  const linked = clip('a', 0, 24);
+  linked.media = { url: '/plate.mov', start: 10, duration: 50, key: '' };
+  const model = { rate: 24, tracks: [{ id: 't', name: 'T', kind: 'video', role: 'shots', clips: [linked] }], markers: [] };
+  const trimmed = trimClip(model, 'a', 'end', 500);
+  assert.equal(findClip(trimmed, 'a').clip.duration, 40);
+});
+
+test('a placeholder slate may be outgrown, because saving makes a new one', () => {
+  const slate = clip('a', 0, 24);
+  slate.media = { url: 'file:///s.mov', start: 0, duration: 24, key: 'griptape:slate:abc' };
+  const model = { rate: 24, tracks: [{ id: 't', name: 'T', kind: 'video', role: 'shots', clips: [slate] }], markers: [] };
+  assert.equal(findClip(trimClip(model, 'a', 'end', 100), 'a').clip.duration, 100);
+});
+
+test('a duration edit cannot run a linked clip past its file, and other edits still work', () => {
+  const linked = clip('a', 0, 24);
+  linked.media = { url: '/plate.mov', start: 10, duration: 50, key: '' };
+  const other = clip('b', 100, 10);
+  const model = { rate: 24, tracks: [{ id: 't', name: 'T', kind: 'video', role: 'shots', clips: [linked, other] }], markers: [] };
+  assert.equal(updateClip(model, 'a', { duration: 41 }), null);
+  assert.equal(findClip(updateClip(model, 'a', { duration: 40 }), 'a').clip.duration, 40);
+  linked.duration = 90; // already too long, as from an imported file
+  assert.notEqual(moveClip(model, 'b', 200), null);
+});
+
+test('an over-long linked clip can still be renamed', () => {
+  const linked = clip('a', 0, 90);
+  linked.media = { url: '/plate.mov', start: 10, duration: 50, key: '' };
+  const model = { rate: 24, tracks: [{ id: 't', name: 'T', kind: 'video', role: 'shots', clips: [linked] }], markers: [] };
+  assert.equal(findClip(updateClip(model, 'a', { name: 'renamed' }), 'a').clip.name, 'renamed');
+  assert.equal(updateClip(model, 'a', { duration: 91 }), null);
+});

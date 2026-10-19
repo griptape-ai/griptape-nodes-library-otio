@@ -85,6 +85,12 @@ def breakdown(parsed: dict[str, Any], settings: BreakdownSettings | None = None)
     sequence = 0
     cut_pending = True
     pending_notes: list[str] = []
+    loose_notes = sorted(parsed.get("notes", []), key=lambda n: n["line"])
+
+    def take_loose_notes(before_line: float, target: list[str]) -> None:
+        """Move the notes that sit between elements, above `before_line`, onto `target`."""
+        while loose_notes and loose_notes[0]["line"] < before_line:
+            target.append(loose_notes.pop(0)["text"])
 
     def new_shot(element: dict[str, Any], cue: str) -> dict[str, Any]:
         nonlocal sequence, cut_pending, pending_notes
@@ -118,6 +124,9 @@ def breakdown(parsed: dict[str, Any], settings: BreakdownSettings | None = None)
         kind = element["type"]
         if kind == "scene_heading":
             current = None
+        # A note between elements goes with the shot being built. Above a scene heading it goes with the next scene.
+        take_loose_notes(element["line_start"], current["notes"] if current is not None else pending_notes)
+        if kind == "scene_heading":
             pending_notes.extend(element.get("notes", []))
             continue
         if kind == "transition":
@@ -149,6 +158,8 @@ def breakdown(parsed: dict[str, Any], settings: BreakdownSettings | None = None)
             continue
         current["line_end"] = element["line_end"]
         current["notes"].extend(element.get("notes", []))
+
+    take_loose_notes(float("inf"), shots[-1]["notes"] if shots else pending_notes)
 
     for shot in shots:
         spoken = sum(line["seconds"] for line in shot["dialogue"])

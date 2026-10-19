@@ -26,6 +26,7 @@ SFX_ROLE = "sfx"
 AUDIO_ROLE = "audio"
 ROLES = (SHOTS_ROLE, DIALOGUE_ROLE, SFX_ROLE, AUDIO_ROLE)
 KINDS = ("video", "audio")
+MEDIA_KEY_PREFIX = "griptape:"
 
 SHOT_COLORS = {"INT": "#d9a441", "EXT": "#4f9d69", "NIGHT": "#4a5a9a", "OTHER": "#8a8a8a"}
 SPEAKER_PALETTE = ["#c8553d", "#3d7ec8", "#8f5fc0", "#3aa6a0", "#c08a3a", "#6e8f3a"]
@@ -160,8 +161,12 @@ def total_frames(model: dict[str, Any]) -> int:
     return max((c["start"] + c["duration"] for t in model["tracks"] for c in t["clips"]), default=0)
 
 
-def validate_model(model: dict[str, Any]) -> None:
-    """Raise ValueError listing every problem: bad rate, unknown kind or role, bad times, overlapping clips."""
+def validate_model(model: dict[str, Any], *, remakes_media: bool = False) -> None:
+    """Raise ValueError listing every problem: bad rate, unknown kind or role, bad times, overlapping clips.
+
+    Media a clip has outgrown is a problem, unless `remakes_media` says the caller is about to make new placeholder
+    media (see `media.ensure_media`). Linked files are never remade, so they are always checked.
+    """
     problems: list[str] = []
     rate = model.get("rate", 0)
     if not isinstance(rate, int | float) or rate <= 0:
@@ -186,7 +191,14 @@ def validate_model(model: dict[str, Any]) -> None:
                 problems.append(f"{label}: overlaps the previous clip by {end - start} frames")
             end = max(end, start + duration)
             media = clip.get("media")
-            if media and media.get("duration") is not None and media["start"] + duration > media["duration"]:
+            owned = bool(media) and str(media.get("key", "")).startswith(MEDIA_KEY_PREFIX)
+            skip_length = owned and remakes_media
+            if (
+                media
+                and not skip_length
+                and media.get("duration") is not None
+                and media["start"] + duration > media["duration"]
+            ):
                 problems.append(f"{label}: its media is {media['duration']} frames, too short for the clip")
             if clip.get("id") in seen_ids:
                 problems.append(f"{label}: duplicate id '{clip.get('id')}'")

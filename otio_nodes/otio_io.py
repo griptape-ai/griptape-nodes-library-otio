@@ -10,7 +10,6 @@ when writing and dropped when reading, so they always match the clips. No engine
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from pathlib import Path
 from typing import Any
 
 import opentimelineio as otio
@@ -138,6 +137,8 @@ def otio_to_model(timeline: otio.schema.Timeline) -> dict[str, Any]:
     own = _plain(timeline.metadata.get(METADATA_KEY, {}))
     rate = float(own.get("rate") or _first_rate(timeline) or 24.0)
     warnings: list[str] = []
+    if len(timeline.tracks.markers):
+        warnings.append(f"Dropped {len(timeline.tracks.markers)} marker(s) set on the whole timeline.")
     used_ids: set[str] = set()
 
     def unique(wanted: str | None, fallback: str) -> str:
@@ -161,7 +162,13 @@ def otio_to_model(timeline: otio.schema.Timeline) -> dict[str, Any]:
         for child in track:
             if isinstance(child, otio.schema.Clip):
                 clip_count += 1
-                clip_model = _from_otio_clip(child, rate, f"clip-{clip_count}")
+                if len(child.markers):
+                    warnings.append(f"Dropped {len(child.markers)} marker(s) on clip '{child.name}'.")
+                try:
+                    clip_model = _from_otio_clip(child, rate, f"clip-{clip_count}", warnings)
+                except otio.exceptions.OTIOError as e:
+                    warnings.append(f"Skipped clip '{child.name}' on track '{track.name}': {e}")
+                    continue
                 clip_model["id"] = unique(clip_model["id"], f"clip-{clip_count}")
                 clips.append(clip_model)
             elif isinstance(child, otio.schema.Transition):
@@ -213,15 +220,20 @@ def _first_rate(timeline: otio.schema.Timeline) -> float | None:
     return None
 
 
-def _from_otio_clip(clip: otio.schema.Clip, rate: float, fallback_id: str) -> dict[str, Any]:
+def _from_otio_clip(clip: otio.schema.Clip, rate: float, fallback_id: str, warnings: list[str]) -> dict[str, Any]:
     info = _plain(clip.metadata.get(METADATA_KEY, {}))
     in_parent = clip.range_in_parent()
     meta = {k: v for k, v in info.items() if k not in ("id", "description", "color", "media_key", "media_shown")}
     media = None
     reference = clip.media_reference
     if isinstance(reference, otio.schema.ExternalReference):
-        start = _frames(clip.source_range.start_time, rate) if clip.source_range is not None else 0
         available = reference.available_range
+        start = _frames(clip.source_range.start_time, rate) if clip.source_range is not None else 0
+        if available is not None:
+            start -= _frames(available.start_time, rate)  # media.start counts from the first frame of the file
+            if start < 0:
+                warnings.append(f"Clip '{clip.name}' starts before its media. Its start in the media was set to 0.")
+                start = 0
         media = {
             "url": reference.target_url,
             "start": start,
@@ -256,32 +268,8 @@ def from_json(text: str) -> dict[str, Any]:
     return otio_to_model(_as_timeline(otio.adapters.read_from_string(text, "otio_json")))
 
 
-def write_otio(model: dict[str, Any], path: str | Path) -> Path:
-    """Write the model as an .otio file at `path`. Raises if the file exists, so versions are never overwritten."""
-    target = Path(path)
-    if target.exists():
-        msg = f"{target} already exists. Choose a new version name instead of overwriting."
-        raise FileExistsError(msg)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    otio.adapters.write_to_file(model_to_otio(model), str(target), "otio_json")
-    return target
-
-
-def read_otio(path: str | Path) -> dict[str, Any]:
-    return otio_to_model(_as_timeline(otio.adapters.read_from_file(str(path), "otio_json")))
-
-
 def _as_timeline(obj: Any) -> otio.schema.Timeline:
     if isinstance(obj, otio.schema.Timeline):
         return obj
     msg = f"Expected an OTIO Timeline, got {type(obj).__name__}"
     raise ValueError(msg)
-
-
-def next_version_path(directory: str | Path, stem: str, suffix: str = ".otio") -> Path:
-    """Return directory/stem_v001.otio, or the next free version number."""
-    folder = Path(directory)
-    version = 1
-    while (folder / f"{stem}_v{version:03d}{suffix}").exists():
-        version += 1
-    return folder / f"{stem}_v{version:03d}{suffix}"

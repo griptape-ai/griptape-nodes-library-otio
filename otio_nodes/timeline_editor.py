@@ -66,6 +66,7 @@ def edited_name(source: str | Path) -> str:
 PREVIEW_FOLDER = "{griptape-nodes-previews}/otio"
 PREVIEW_KEYS = ("previews", "preparing", "preview_errors")
 PROGRESS_SECONDS = 0.7
+PATCH_ATTEMPTS = 5
 
 
 class TimelineEditor(SuccessFailureNode):
@@ -81,10 +82,13 @@ class TimelineEditor(SuccessFailureNode):
     else, including when the timeline came in as text. The file is replaced each time.
     """
 
+    RELOAD_CONFIRM_SECONDS = 20.0
+
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._preview_lock = threading.RLock()
         self._preview_jobs: set[Path] = set()
+        self._reload_armed_at: float | None = None
         self.add_parameter(
             ParameterString(
                 name="source",
@@ -281,18 +285,30 @@ class TimelineEditor(SuccessFailureNode):
         threading.Thread(target=self._make_preview, args=(address, path, target), daemon=True).start()
 
     def _patch_timeline(self, change: Callable[[dict[str, Any]], None]) -> None:
-        """Change the preview maps in the timeline the editor holds now, and nothing else, so edits are never undone."""
-        with self._preview_lock:
-            current = self.get_parameter_value("edited_timeline")
-            if not isinstance(current, dict) or not current.get("tracks"):
+        """Change the preview maps in the timeline the editor holds now, and nothing else, so edits are never undone.
+
+        This runs on a preview thread while the editor can change the same value from another. The patch is made on a
+        copy, and the copy is only stored if the value is still what the patch started from. If an edit arrived in the
+        meantime the patch is made again on the new value. A last edit landing between that check and the store is
+        still possible, but the window is a few instructions wide. The editor also ignores a preview-only update that
+        would drop an edit it holds.
+        """
+        for attempt in range(PATCH_ATTEMPTS):
+            with self._preview_lock:
+                current = self.get_parameter_value("edited_timeline")
+                if not isinstance(current, dict) or not current.get("tracks"):
+                    return
+                before = copy.deepcopy(current)
+                updated = copy.deepcopy(before)
+                change(updated)
+                for key in PREVIEW_KEYS:
+                    if not updated.get(key):
+                        updated.pop(key, None)
+                if self.get_parameter_value("edited_timeline") != before and attempt < PATCH_ATTEMPTS - 1:
+                    continue
+                self.set_parameter_value("edited_timeline", updated)
+                self.publish_update_to_parameter("edited_timeline", updated)
                 return
-            updated = copy.deepcopy(current)
-            change(updated)
-            for key in PREVIEW_KEYS:
-                if not updated.get(key):
-                    updated.pop(key, None)
-            self.set_parameter_value("edited_timeline", updated)
-            self.publish_update_to_parameter("edited_timeline", updated)
 
     def _make_preview(self, address: str, path: Path, target: Path) -> None:
         last = [0.0]
@@ -378,8 +394,6 @@ class TimelineEditor(SuccessFailureNode):
         self.publish_update_to_parameter("edited_timeline", timeline)
         return True
 
-    RELOAD_CONFIRM_SECONDS = 20.0
-
     def _has_edits(self) -> bool:
         """True when the editor holds something other than what a reload would bring back."""
         current = self.get_parameter_value("edited_timeline")
@@ -396,7 +410,7 @@ class TimelineEditor(SuccessFailureNode):
     def _on_reload_clicked(self, button: Button, button_details: ButtonDetailsMessagePayload) -> NodeMessageResult:
         # A node cannot open a dialog, so the warning is a second click: the first one says what will be lost and turns
         # the button red, and a second click soon after goes ahead.
-        armed = getattr(self, "_reload_armed_at", None)
+        armed = self._reload_armed_at
         confirmed = armed is not None and time.monotonic() - armed < self.RELOAD_CONFIRM_SECONDS
         if not confirmed and self._has_edits():
             self._reload_armed_at = time.monotonic()
@@ -427,11 +441,11 @@ class TimelineEditor(SuccessFailureNode):
     # Running: read the edited timeline, pass it on and save it
 
     @staticmethod
-    def _problems(timeline: Any) -> list[str]:
+    def _problems(timeline: Any, *, remakes_media: bool = False) -> list[str]:
         if not isinstance(timeline, dict) or not timeline.get("tracks"):
             return ["There is no timeline to edit. Choose a 'Source', then connect 'OTIO' or choose an .otio file."]
         try:
-            validate_model(timeline)
+            validate_model(timeline, remakes_media=remakes_media)
         except ValueError as e:
             return [line.removeprefix("- ") for line in str(e).splitlines()[1:]] or [str(e)]
         return []
@@ -441,7 +455,8 @@ class TimelineEditor(SuccessFailureNode):
         timeline = self.get_parameter_value("edited_timeline")
         if timeline or not self._has_input():
             # With an input and no edits yet, the input is read when the node runs and any problem is reported then.
-            exceptions.extend(NodeError(problem) for problem in self._problems(timeline))
+            remakes = self._saves_with_media()
+            exceptions.extend(NodeError(problem) for problem in self._problems(timeline, remakes_media=remakes))
         return exceptions or None
 
     def process(self) -> AsyncResult[None]:
@@ -461,6 +476,13 @@ class TimelineEditor(SuccessFailureNode):
             return chosen
         path = self._file_path()
         return str(Path(File(path).resolve()).parent / edited_name(path)) if path else ""
+
+    def _saves_with_media(self) -> bool:
+        """True when running will save the timeline and make placeholder media, so outgrown slates get remade."""
+        try:
+            return bool(self._target()) and media_settings(self)[0]
+        except Exception:  # noqa: BLE001
+            return False
 
     def _destination(self, target: str) -> Any:
         """A connected FileOutputSettings node if there is one, otherwise `target`, replacing any file already there."""
@@ -486,14 +508,14 @@ class TimelineEditor(SuccessFailureNode):
                 timeline = link_media(timeline, self._resolve_media, ffprobe_seconds)
             except ValueError as e:
                 raise NodeError(str(e)) from e
-        problems = self._problems(timeline)
+        target = self._target()
+        make_media, handle_seconds = media_settings(self)
+        problems = self._problems(timeline, remakes_media=bool(target) and make_media)
         if problems or not isinstance(timeline, dict):
             raise NodeError("; ".join(problems) or "There is no timeline to edit.")
 
-        target = self._target()
         saved_path = ""
         if target:
-            make_media, handle_seconds = media_settings(self)
             try:
                 path, timeline = save_through_destination(
                     timeline, self._destination(target), make_media=make_media, handle_seconds=handle_seconds

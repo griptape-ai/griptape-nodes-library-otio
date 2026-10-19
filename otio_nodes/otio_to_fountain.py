@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any
 
 from griptape_nodes.exe_types.core_types import NodeError, Parameter, ParameterGroup, ParameterMode
@@ -15,7 +16,6 @@ from griptape_nodes.traits.options import Options
 
 from otio_nodes.fountain import parse
 from otio_nodes.fountain_writer import write_fountain
-from otio_nodes.node_helpers import script_summary
 from otio_nodes.otio_io import from_json
 from otio_nodes.output_directory import to_project_path
 
@@ -164,7 +164,6 @@ class OTIOToFountain(SuccessFailureNode):
             self._handle_failure_exception(e)
 
     def _timeline(self) -> dict[str, Any]:
-        text = "" if self._uses_file() else str(self.get_parameter_value("otio") or "").strip()
         if self._uses_file():
             path = self._file_path()
             try:
@@ -172,6 +171,8 @@ class OTIOToFountain(SuccessFailureNode):
             except Exception as e:
                 msg = f"Could not read '{path}'. Choose an .otio file in 'OTIO File'."
                 raise NodeError(msg) from e
+        else:
+            text = str(self.get_parameter_value("otio") or "").strip()
         try:
             return from_json(text)
         except Exception as e:
@@ -195,6 +196,8 @@ class OTIOToFountain(SuccessFailureNode):
             saved = to_project_path(self._output_file.build_file().write_text(script).location)
         self.parameter_output_values["fountain"] = script
         self.parameter_output_values["fountain_file"] = saved
-        lines = script_summary(parsed).splitlines()
-        details = "; ".join(line.removeprefix("Title: ") for line in lines[1:4]) + (f". Saved {saved}" if saved else "")
+        counts = Counter(e["type"] for e in parsed["elements"])
+        scenes = sum(1 for s in parsed["scenes"] if s["heading"])
+        details = f"Wrote {scenes} scenes, {counts['dialogue']} dialogue blocks, {counts['action']} action blocks"
+        details += f". Saved {saved}" if saved else "."
         self._set_status_results(was_successful=True, result_details=details)

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import math
 import subprocess
 import tempfile
 import textwrap
@@ -25,10 +26,11 @@ from urllib.parse import unquote, urlparse
 
 from PIL import Image, ImageDraw, ImageFont
 
+from otio_nodes.model import MEDIA_KEY_PREFIX
+
 SLATE_SIZE = (1280, 720)
 AUDIO_EXTENSIONS = (".wav", ".wave", ".mp3", ".aif", ".aiff", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma")
-MEDIA_KEY_PREFIX = "griptape:"
-SILENCE_KEY = "griptape:silence"
+SILENCE_KEY = f"{MEDIA_KEY_PREFIX}silence"
 DEFAULT_HANDLE_SECONDS = 10.0
 FONT_CANDIDATES = (
     "/System/Library/Fonts/Helvetica.ttc",
@@ -293,7 +295,7 @@ def ensure_media(
 
     if audio_clips and not all(_covers(c.get("media"), c, SILENCE_KEY) for c in audio_clips):
         frames = max(c["duration"] for c in audio_clips) + 2 * handle
-        path = folder / f"silence_{frames}f.mov"
+        path = folder / f"silence_{rate:g}fps_{frames}f.mov"
         if not path.exists():
             folder.mkdir(parents=True, exist_ok=True)
             encoder.silence(path, frames, rate)
@@ -400,7 +402,7 @@ def link_media(
             seconds = probe(path)
             media["url"] = path.resolve().as_uri()
             media["start"] = max(0, round(media.get("start") or 0))
-            media["duration"] = int(seconds * rate) if seconds is not None else media.get("duration")
+            media["duration"] = math.floor(seconds * rate + 1e-6) if seconds is not None else media.get("duration")
     if missing:
         msg = "Linked media was not found, so nothing was saved:\n- " + "\n- ".join(missing)
         raise ValueError(msg)

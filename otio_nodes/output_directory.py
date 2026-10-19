@@ -174,14 +174,9 @@ class OutputDirectory:
 
     def resolve(self) -> pathlib.Path:
         """Return the folder to write into: from a connected FileOutputSettings node, else from the typed value."""
-        connections = GriptapeNodes.handle_request(ListConnectionsForNodeRequest(node_name=self._node.name))
-        if isinstance(connections, ListConnectionsForNodeResultSuccess):
-            for connection in connections.incoming_connections:
-                if connection.target_parameter_name != self.name:
-                    continue
-                source = GriptapeNodes.ObjectManager().attempt_get_object_by_name(connection.source_node_name)
-                if isinstance(source, FileDestinationProvider) and source.file_destination is not None:
-                    return pathlib.Path(source.file_destination.resolve()).parent
+        destination = connected_destination(self._node, self.name)
+        if destination is not None:
+            return pathlib.Path(destination.resolve()).parent
         return resolve_directory_value(self._node.get_parameter_value(self.name) or "", self._default)
 
     def _on_configure_clicked(self, _button: Button, button_details: ButtonDetailsMessagePayload) -> NodeMessageResult:

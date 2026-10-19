@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, NamedTuple
 
 from griptape_nodes.exe_types.core_types import NodeError, Parameter, ParameterGroup, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
@@ -21,6 +21,50 @@ from otio_nodes.output_directory import OutputDirectory, to_project_path, unmapp
 __all__ = ["ScriptToTimeline"]
 
 DEFAULT_FILENAME = "timeline.otio"
+
+
+class TimingSetting(NamedTuple):
+    """One number on the node's Timing group: the parameter, the BreakdownSettings field it fills, and its limits."""
+
+    parameter: str
+    field: str
+    tooltip: str
+    min_val: float
+    max_val: float
+    step: float
+
+
+TIMING_SETTINGS = (
+    TimingSetting(
+        "frame_rate",
+        "rate",
+        "Frames per second. Every time on the timeline is a whole number of frames at this rate.",
+        1.0,
+        120.0,
+        0.001,
+    ),
+    TimingSetting(
+        "words_per_second",
+        "words_per_second",
+        "How fast the dialogue is spoken. A line lasts its word count divided by this.",
+        0.5,
+        8.0,
+        0.05,
+    ),
+    TimingSetting("line_pause", "line_pause", "Seconds of silence added after every line of dialogue.", 0.0, 5.0, 0.05),
+    TimingSetting(
+        "min_line_seconds",
+        "min_line_seconds",
+        "The shortest a spoken line can be, before the pause is added.",
+        0.1,
+        10.0,
+        0.05,
+    ),
+    TimingSetting("min_shot_seconds", "min_shot_seconds", "The shortest a shot with dialogue can be.", 0.1, 30.0, 0.1),
+    TimingSetting(
+        "default_shot_seconds", "default_shot_seconds", "The length of a shot with no dialogue.", 0.1, 60.0, 0.1
+    ),
+)
 
 
 class ScriptToTimeline(SuccessFailureNode):
@@ -46,60 +90,16 @@ class ScriptToTimeline(SuccessFailureNode):
         )
         defaults = BreakdownSettings()
         with ParameterGroup(name="timing", ui_options={"display_name": "Timing", "collapsed": True}) as timing:
-            ParameterFloat(
-                name="frame_rate",
-                default_value=defaults.rate,
-                tooltip="Frames per second. Every time on the timeline is a whole number of frames at this rate.",
-                min_val=1.0,
-                max_val=120.0,
-                step=0.001,
-                allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
-            )
-            ParameterFloat(
-                name="words_per_second",
-                default_value=defaults.words_per_second,
-                tooltip="How fast the dialogue is spoken. A line lasts its word count divided by this.",
-                min_val=0.5,
-                max_val=8.0,
-                step=0.05,
-                allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
-            )
-            ParameterFloat(
-                name="line_pause",
-                default_value=defaults.line_pause,
-                tooltip="Seconds of silence added after every line of dialogue.",
-                min_val=0.0,
-                max_val=5.0,
-                step=0.05,
-                allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
-            )
-            ParameterFloat(
-                name="min_line_seconds",
-                default_value=defaults.min_line_seconds,
-                tooltip="The shortest a spoken line can be, before the pause is added.",
-                min_val=0.1,
-                max_val=10.0,
-                step=0.05,
-                allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
-            )
-            ParameterFloat(
-                name="min_shot_seconds",
-                default_value=defaults.min_shot_seconds,
-                tooltip="The shortest a shot with dialogue can be.",
-                min_val=0.1,
-                max_val=30.0,
-                step=0.1,
-                allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
-            )
-            ParameterFloat(
-                name="default_shot_seconds",
-                default_value=defaults.default_shot_seconds,
-                tooltip="The length of a shot with no dialogue.",
-                min_val=0.1,
-                max_val=60.0,
-                step=0.1,
-                allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
-            )
+            for setting in TIMING_SETTINGS:
+                ParameterFloat(
+                    name=setting.parameter,
+                    default_value=getattr(defaults, setting.field),
+                    tooltip=setting.tooltip,
+                    min_val=setting.min_val,
+                    max_val=setting.max_val,
+                    step=setting.step,
+                    allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
+                )
         self.add_node_element(timing)
         self.add_parameter(
             ParameterString(
@@ -182,7 +182,7 @@ class ScriptToTimeline(SuccessFailureNode):
     def validate_before_node_run(self) -> list[Exception] | None:
         exceptions = list(super().validate_before_node_run() or [])
         script = self.get_parameter_value("script")
-        if not isinstance(script, dict) or "elements" not in script:
+        if not isinstance(script, dict) or "elements" not in script or "scenes" not in script:
             exceptions.append(
                 NodeError("There is no script to build from. Connect 'Script' from Load Fountain Script.")
             )
@@ -203,18 +203,11 @@ class ScriptToTimeline(SuccessFailureNode):
 
     def _settings(self) -> BreakdownSettings:
         defaults = BreakdownSettings()
-        cues = parse_cue_lines(self.get_parameter_value("shot_cues"))
-        settings = BreakdownSettings(
-            rate=float(self.get_parameter_value("frame_rate") or defaults.rate),
-            words_per_second=float(self.get_parameter_value("words_per_second") or defaults.words_per_second),
-            line_pause=float(self.get_parameter_value("line_pause") or 0.0),
-            min_line_seconds=float(self.get_parameter_value("min_line_seconds") or defaults.min_line_seconds),
-            min_shot_seconds=float(self.get_parameter_value("min_shot_seconds") or defaults.min_shot_seconds),
-            default_shot_seconds=float(
-                self.get_parameter_value("default_shot_seconds") or defaults.default_shot_seconds
-            ),
-            shot_cues=cues,
-        )
+        values: dict[str, float] = {}
+        for setting in TIMING_SETTINGS:
+            value = self.get_parameter_value(setting.parameter)
+            values[setting.field] = float(getattr(defaults, setting.field) if value is None else value)
+        settings = BreakdownSettings(**values, shot_cues=parse_cue_lines(self.get_parameter_value("shot_cues")))
         try:
             settings.validate()
         except ValueError as e:
@@ -244,7 +237,7 @@ class ScriptToTimeline(SuccessFailureNode):
             )
             otio_path = to_project_path(otio_path)
             output_directory = to_project_path(folder)
-            details += f" Saved {otio_path}"
+            details += f" Saved {otio_path}."
             if not output_directory.startswith("{"):
                 details += f" The folder is shown as an absolute path. {unmapped_reason(output_directory)}"
         self.parameter_output_values["otio"] = to_json(model)

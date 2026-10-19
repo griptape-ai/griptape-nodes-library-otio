@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.12.*"
 
 [[package]]
@@ -1012,6 +1012,8 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "opentimelineio" },
+    { name = "pillow" },
+    { name = "static-ffmpeg" },
 ]
 
 [package.dev-dependencies]
@@ -1024,7 +1026,11 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "opentimelineio", specifier = ">=0.17.0" }]
+requires-dist = [
+    { name = "opentimelineio", specifier = ">=0.17.0" },
+    { name = "pillow", specifier = ">=10.0.0" },
+    { name = "static-ffmpeg", specifier = ">=2.5" },
+]
 
 [package.metadata.requires-dev]
 dev = [

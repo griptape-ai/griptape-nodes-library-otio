@@ -30,7 +30,7 @@ import {
   totalFrames,
   trimClip,
   updateClip,
-} from './_ops.js?v=34d79a96';
+} from './_ops.js?v=4acb0602';
 import {
   BAND_HEIGHT,
   EDGE_PX,
@@ -42,19 +42,17 @@ import {
   SHOT_LANE_HEIGHT,
   SNAP_PX,
   ensureStyles,
-} from './_styles.js?v=34d79a96';
-import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=34d79a96';
-import { el, readableOn } from './_dom.js?v=34d79a96';
-import { createViewer } from './_viewer.js?v=34d79a96';
-import { createAudio } from './_audio.js?v=34d79a96';
-import { FOLDER_PATH, icon } from './_icons.js?v=34d79a96';
-import { createTooltip } from './_tooltip.js?v=34d79a96';
+} from './_styles.js?v=4acb0602';
+import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=4acb0602';
+import { el, readableOn } from './_dom.js?v=4acb0602';
+import { createViewer } from './_viewer.js?v=4acb0602';
+import { createAudio } from './_audio.js?v=4acb0602';
+import { FOLDER_PATH, icon } from './_icons.js?v=4acb0602';
+import { createTooltip } from './_tooltip.js?v=4acb0602';
+import { classifyIncoming, heldEntry, takePreviews } from './_echo.js?v=4acb0602';
 
 const WIDGET_VERSION = '0.2.0';
 const sameModel = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-const PREVIEW_KEYS = ['previews', 'preparing', 'preview_errors'];
-const withoutPreviews = (model) => JSON.stringify({ ...model, previews: undefined, preparing: undefined, preview_errors: undefined });
-const onlyPreviewsDiffer = (a, b) => withoutPreviews(a) === withoutPreviews(b);
 
 export default function TimelineEditor(container, props) {
   if (container._instance?.wrapper?.isConnected) {
@@ -83,18 +81,15 @@ export default function TimelineEditor(container, props) {
     notice: '',
   };
 
-  // The editor hands back what the widget sends, a little later. Until the latest message has come back, it may first
-  // hand back an older one, and adopting that would pull the timeline back to where it was for a moment (a dropped clip
-  // jumping back, then forward). So the values this widget has held are remembered, and an older one arriving soon
-  // after a send, and while the latest send has not come back yet, is ignored. Once it has come back, whatever the node
-  // sends is taken, so a reset from the node is never mistaken for an old echo.
-  const STALE_ECHO_MS = 2000;
+  // What the node sends back is checked against what this widget has sent (see _echo.js). `held` remembers the
+  // timelines sent, newest last.
   const held = [];
   let lastSendAt = 0;
   let awaitingEcho = false;
   const remember = (model) => {
-    const json = JSON.stringify(model);
-    if (held[held.length - 1] !== json) held.push(json);
+    const entry = heldEntry(model);
+    const last = held[held.length - 1];
+    if (!last || last.bare !== entry.bare || last.previews !== entry.previews) held.push(entry);
     if (held.length > 16) held.shift();
   };
   const markSent = () => {
@@ -247,6 +242,8 @@ export default function TimelineEditor(container, props) {
     const view = root.ownerDocument.defaultView;
     const question = 'Reload the timeline from the node input?\n\nEvery edit made in this editor (timing, names, linked media) will be lost.';
     if (!view.confirm(question)) return;
+    held.length = 0; // the timeline the node answers with is wanted, even if it equals one sent a moment ago
+    remember(state.model);
     if (onChange) onChange({ ...structuredClone(state.model), reload: Date.now() });
   }
 
@@ -1108,21 +1105,16 @@ export default function TimelineEditor(container, props) {
       if (state.model) { state.model = null; renderEmpty(); }
       return;
     }
-    const same = !!state.model && sameModel(incoming, state.model);
-    if (same) awaitingEcho = false; // the latest send has come back
-    else if (state.model && awaitingEcho && performance.now() - lastSendAt < STALE_ECHO_MS && held.slice(0, -1).includes(JSON.stringify(incoming))) {
+    const kind = classifyIncoming({ incoming, model: state.model, held, awaitingEcho, lastSendAt, now: performance.now() });
+    if (kind === 'same') awaitingEcho = false; // the latest send has come back
+    if (kind === 'stale') {
       if (wasDisabled !== disabled) renderToolbar();
-      return; // an older value coming back. The latest is on its way
+      return; // the echo of an older send. The latest is on its way
     }
-    if (state.model && !same && onlyPreviewsDiffer(incoming, state.model)) {
-      // The node is making viewer copies of linked files and reporting how far it has got. That changes nothing the
-      // user edits, so only the preview information is taken and nothing is redrawn but the viewer.
-      for (const key of PREVIEW_KEYS) {
-        if (incoming[key]) state.model[key] = structuredClone(incoming[key]);
-        else delete state.model[key];
-      }
-      held.length = 0;
-      remember(state.model);
+    if (kind === 'previews' || kind === 'stalePreviews') {
+      // The node is reporting how far it has got with viewer copies of linked files. That changes nothing the user
+      // edits, so only the preview information is taken and nothing is redrawn but the viewer.
+      takePreviews(state.model, incoming);
       updateViewer();
       return;
     }
