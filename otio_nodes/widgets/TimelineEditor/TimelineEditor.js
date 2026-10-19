@@ -30,7 +30,7 @@ import {
   totalFrames,
   trimClip,
   updateClip,
-} from './_ops.js?v=2578900f';
+} from './_ops.js?v=4acb0602';
 import {
   BAND_HEIGHT,
   EDGE_PX,
@@ -42,14 +42,14 @@ import {
   SHOT_LANE_HEIGHT,
   SNAP_PX,
   ensureStyles,
-} from './_styles.js?v=2578900f';
-import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=2578900f';
-import { el, readableOn } from './_dom.js?v=2578900f';
-import { createViewer } from './_viewer.js?v=2578900f';
-import { createAudio } from './_audio.js?v=2578900f';
-import { FOLDER_PATH, icon } from './_icons.js?v=2578900f';
-import { createTooltip } from './_tooltip.js?v=2578900f';
-import { classifyIncoming, takePreviews, withoutPreviews } from './_echo.js?v=2578900f';
+} from './_styles.js?v=4acb0602';
+import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=4acb0602';
+import { el, readableOn } from './_dom.js?v=4acb0602';
+import { createViewer } from './_viewer.js?v=4acb0602';
+import { createAudio } from './_audio.js?v=4acb0602';
+import { FOLDER_PATH, icon } from './_icons.js?v=4acb0602';
+import { createTooltip } from './_tooltip.js?v=4acb0602';
+import { classifyIncoming, heldEntry, takePreviews } from './_echo.js?v=4acb0602';
 
 const WIDGET_VERSION = '0.2.0';
 const sameModel = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -82,13 +82,14 @@ export default function TimelineEditor(container, props) {
   };
 
   // What the node sends back is checked against what this widget has sent (see _echo.js). `held` remembers the
-  // timelines sent, without their preview keys, newest last.
+  // timelines sent, newest last.
   const held = [];
   let lastSendAt = 0;
   let awaitingEcho = false;
   const remember = (model) => {
-    const json = withoutPreviews(model);
-    if (held[held.length - 1] !== json) held.push(json);
+    const entry = heldEntry(model);
+    const last = held[held.length - 1];
+    if (!last || last.bare !== entry.bare || last.previews !== entry.previews) held.push(entry);
     if (held.length > 16) held.shift();
   };
   const markSent = () => {
@@ -1106,13 +1107,13 @@ export default function TimelineEditor(container, props) {
     }
     const kind = classifyIncoming({ incoming, model: state.model, held, awaitingEcho, lastSendAt, now: performance.now() });
     if (kind === 'same') awaitingEcho = false; // the latest send has come back
-    if (kind === 'previews' || kind === 'stale') {
-      // Either the node is reporting how far it has got with viewer copies of linked files, or it sent an older value
-      // than the widget's. Neither changes anything the user edits, so only the preview information is taken, and
-      // nothing is redrawn but the viewer.
-      if (kind === 'stale') {
-        if (wasDisabled !== disabled) renderToolbar();
-      }
+    if (kind === 'stale') {
+      if (wasDisabled !== disabled) renderToolbar();
+      return; // the echo of an older send. The latest is on its way
+    }
+    if (kind === 'previews' || kind === 'stalePreviews') {
+      // The node is reporting how far it has got with viewer copies of linked files. That changes nothing the user
+      // edits, so only the preview information is taken and nothing is redrawn but the viewer.
       takePreviews(state.model, incoming);
       updateViewer();
       return;

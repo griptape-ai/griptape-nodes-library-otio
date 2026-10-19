@@ -134,7 +134,7 @@ widget/stamp: ## Stamp the widget's imports with a hash of its files. Run after 
 
 .PHONY: check/js
 check/js: ## Run the widget's JavaScript tests (needs Node).
-	@node --test tests/js/
+	@node --test tests/js/*.mjs
 
 .PHONY: check/json
 check/json: ## Validate JSON files.
