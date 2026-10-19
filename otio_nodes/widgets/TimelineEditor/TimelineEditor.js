@@ -30,7 +30,7 @@ import {
   totalFrames,
   trimClip,
   updateClip,
-} from './_ops.js?v=966565b0';
+} from './_ops.js?v=2578900f';
 import {
   BAND_HEIGHT,
   EDGE_PX,
@@ -42,14 +42,14 @@ import {
   SHOT_LANE_HEIGHT,
   SNAP_PX,
   ensureStyles,
-} from './_styles.js?v=966565b0';
-import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=966565b0';
-import { el, readableOn } from './_dom.js?v=966565b0';
-import { createViewer } from './_viewer.js?v=966565b0';
-import { createAudio } from './_audio.js?v=966565b0';
-import { FOLDER_PATH, icon } from './_icons.js?v=966565b0';
-import { createTooltip } from './_tooltip.js?v=966565b0';
-import { classifyIncoming, takePreviews, withoutPreviews } from './_echo.js?v=966565b0';
+} from './_styles.js?v=2578900f';
+import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=2578900f';
+import { el, readableOn } from './_dom.js?v=2578900f';
+import { createViewer } from './_viewer.js?v=2578900f';
+import { createAudio } from './_audio.js?v=2578900f';
+import { FOLDER_PATH, icon } from './_icons.js?v=2578900f';
+import { createTooltip } from './_tooltip.js?v=2578900f';
+import { classifyIncoming, takePreviews, withoutPreviews } from './_echo.js?v=2578900f';
 
 const WIDGET_VERSION = '0.2.0';
 const sameModel = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -241,6 +241,8 @@ export default function TimelineEditor(container, props) {
     const view = root.ownerDocument.defaultView;
     const question = 'Reload the timeline from the node input?\n\nEvery edit made in this editor (timing, names, linked media) will be lost.';
     if (!view.confirm(question)) return;
+    held.length = 0; // the timeline the node answers with is wanted, even if it equals one sent a moment ago
+    remember(state.model);
     if (onChange) onChange({ ...structuredClone(state.model), reload: Date.now() });
   }
 

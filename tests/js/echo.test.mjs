@@ -55,3 +55,13 @@ test('previews are copied over and missing ones are removed', () => {
   assert.deepEqual(model.previews, { a: 'y' });
   assert.equal('preparing' in model, false);
 });
+
+test('an older timeline with preview progress is ignored even after the latest send came back', () => {
+  const incoming = timeline(0, { preparing: { 'plate.mov': 0.4 } });
+  assert.equal(classifyIncoming({ ...state({ awaitingEcho: false, now: 3000 }), incoming }), 'stale');
+});
+
+test('an older timeline with preview progress is taken once enough time has passed', () => {
+  const incoming = timeline(0, { preparing: { 'plate.mov': 0.4 } });
+  assert.equal(classifyIncoming({ ...state({ awaitingEcho: false, now: 9000 }), incoming }), 'replace');
+});

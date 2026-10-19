@@ -9,6 +9,9 @@
 
 export const PREVIEW_KEYS = ['previews', 'preparing', 'preview_errors'];
 export const STALE_ECHO_MS = 2000;
+// An update carrying preview keys comes from the node's preview thread, not from the echo of a send. It is built from
+// the timeline as the node had it, and it can arrive any time after an edit, even after the echo has come back.
+export const STALE_PREVIEW_MS = 5000;
 
 // The timeline as text, without the preview keys. This is what the widget remembers about what it sent.
 export const withoutPreviews = (model) => JSON.stringify({ ...model, previews: undefined, preparing: undefined, preview_errors: undefined });
@@ -16,15 +19,19 @@ export const withoutPreviews = (model) => JSON.stringify({ ...model, previews: u
 // What to do with `incoming`:
 //   'same'     it is the timeline the widget holds, preview keys included.
 //   'previews' it is the timeline the widget holds, with different preview keys. Take the preview keys.
-//   'stale'    it is an older timeline this widget sent, while the latest send has not come back. Keep the widget's
-//              timeline and take the preview keys.
+//   'stale'    it is an older timeline this widget sent, and either the latest send has not come back or it carries
+//              preview keys and was sent soon after an edit. Keep the widget's timeline and take the preview keys.
 //   'replace'  anything else. The node sent a timeline of its own, so it replaces the widget's.
 // `held` lists withoutPreviews() of what the widget has sent, oldest first, the latest last.
 export function classifyIncoming({ incoming, model, held, awaitingEcho, lastSendAt, now }) {
   if (!model) return 'replace';
   const bare = withoutPreviews(incoming);
   if (bare === withoutPreviews(model)) return JSON.stringify(incoming) === JSON.stringify(model) ? 'same' : 'previews';
-  if (awaitingEcho && now - lastSendAt < STALE_ECHO_MS && held.slice(0, -1).includes(bare)) return 'stale';
+  if (!held.slice(0, -1).includes(bare)) return 'replace';
+  const sinceSend = now - lastSendAt;
+  const fromPreviewThread = PREVIEW_KEYS.some((key) => incoming[key]);
+  if (awaitingEcho && sinceSend < STALE_ECHO_MS) return 'stale';
+  if (fromPreviewThread && sinceSend < STALE_PREVIEW_MS) return 'stale';
   return 'replace';
 }
 
