@@ -428,11 +428,11 @@ class TimelineEditor(SuccessFailureNode):
     # Running: read the edited timeline, pass it on and save it
 
     @staticmethod
-    def _problems(timeline: Any) -> list[str]:
+    def _problems(timeline: Any, *, remakes_media: bool = False) -> list[str]:
         if not isinstance(timeline, dict) or not timeline.get("tracks"):
             return ["There is no timeline to edit. Choose a 'Source', then connect 'OTIO' or choose an .otio file."]
         try:
-            validate_model(timeline)
+            validate_model(timeline, remakes_media=remakes_media)
         except ValueError as e:
             return [line.removeprefix("- ") for line in str(e).splitlines()[1:]] or [str(e)]
         return []
@@ -442,7 +442,8 @@ class TimelineEditor(SuccessFailureNode):
         timeline = self.get_parameter_value("edited_timeline")
         if timeline or not self._has_input():
             # With an input and no edits yet, the input is read when the node runs and any problem is reported then.
-            exceptions.extend(NodeError(problem) for problem in self._problems(timeline))
+            remakes = self._saves_with_media()
+            exceptions.extend(NodeError(problem) for problem in self._problems(timeline, remakes_media=remakes))
         return exceptions or None
 
     def process(self) -> AsyncResult[None]:
@@ -462,6 +463,13 @@ class TimelineEditor(SuccessFailureNode):
             return chosen
         path = self._file_path()
         return str(Path(File(path).resolve()).parent / edited_name(path)) if path else ""
+
+    def _saves_with_media(self) -> bool:
+        """True when running will save the timeline and make placeholder media, so outgrown slates get remade."""
+        try:
+            return bool(self._target()) and media_settings(self)[0]
+        except Exception:  # noqa: BLE001
+            return False
 
     def _destination(self, target: str) -> Any:
         """A connected FileOutputSettings node if there is one, otherwise `target`, replacing any file already there."""
@@ -487,7 +495,7 @@ class TimelineEditor(SuccessFailureNode):
                 timeline = link_media(timeline, self._resolve_media, ffprobe_seconds)
             except ValueError as e:
                 raise NodeError(str(e)) from e
-        problems = self._problems(timeline)
+        problems = self._problems(timeline, remakes_media=self._saves_with_media())
         if problems or not isinstance(timeline, dict):
             raise NodeError("; ".join(problems) or "There is no timeline to edit.")
 

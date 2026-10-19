@@ -87,7 +87,7 @@ def save_timeline(
     `<folder>/media` first, and the returned model records it, so later saves reuse it. An existing file of the same
     name is replaced.
     """
-    validate_model(model)
+    validate_model(model, remakes_media=make_media)
     stem = clean_file_name(file_name)
     target = Path(folder)
     target.mkdir(parents=True, exist_ok=True)
@@ -113,7 +113,7 @@ def save_through_destination(
     settles at write time (a version number is added then) cannot, so the file is written once to settle the name, then
     the media is made and the same file is overwritten with clips that point at it.
     """
-    validate_model(model)
+    validate_model(model, remakes_media=make_media)
     try:
         folder = Path(destination.resolve()).parent
     except Exception:

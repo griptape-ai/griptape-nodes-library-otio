@@ -188,3 +188,9 @@ def test_a_boneyard_on_its_own_line_does_not_split_the_block():
     parsed = parse("Rain falls.\n/* cut this */\nThunder.\n")
     assert [e["type"] for e in parsed["elements"]] == ["action"]
     assert parsed["elements"][0]["text"] == "Rain falls. Thunder."
+
+
+def test_an_indented_note_line_does_not_split_the_block():
+    parsed = parse("JOHN\nHello.\n   [[check this]]  \nMore.\n")
+    assert [e["type"] for e in parsed["elements"]] == ["dialogue"]
+    assert parsed["elements"][0]["text"] == "Hello. More."

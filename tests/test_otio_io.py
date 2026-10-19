@@ -227,5 +227,29 @@ def test_markers_on_clips_and_on_the_timeline_are_reported_when_dropped():
     timeline.tracks[0][0].markers.append(otio.schema.Marker(name="clip marker"))
     timeline.tracks.markers.append(otio.schema.Marker(name="timeline marker"))
     warnings = otio_to_model(timeline)["warnings"]
-    assert any("clip marker" not in w and "marker(s) on clip" in w for w in warnings)
+    assert any(w.startswith("Dropped 1 marker(s) on clip") for w in warnings)
     assert any("whole timeline" in w for w in warnings)
+
+
+def test_foreign_media_start_counts_from_the_first_frame_of_the_file():
+    rate = 24.0
+    reference = otio.schema.ExternalReference(
+        target_url="file:///plate.mov",
+        available_range=otio.opentime.TimeRange(
+            otio.opentime.RationalTime(86400, rate), otio.opentime.RationalTime(240, rate)
+        ),
+    )
+    clip = otio.schema.Clip(
+        name="plate",
+        media_reference=reference,
+        source_range=otio.opentime.TimeRange(
+            otio.opentime.RationalTime(86424, rate), otio.opentime.RationalTime(48, rate)
+        ),
+    )
+    track = otio.schema.Track(name="V", kind=otio.schema.TrackKind.Video)
+    track.append(clip)
+    timeline = otio.schema.Timeline()
+    timeline.tracks.append(track)
+    media = otio_to_model(timeline)["tracks"][0]["clips"][0]["media"]
+    assert media["start"] == 24
+    assert media["duration"] == 240

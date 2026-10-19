@@ -2,9 +2,9 @@
 // when the shot has one the browser can play, with the spoken lines as subtitles and the SFX and audio clips as chips. It draws from the timeline model, so it follows edits as
 // they happen. The play controls live in the bar above the timeline. Text is always set with textContent, never as HTML.
 
-import { el } from './_dom.js?v=f6a97dcc';
-import { activeAt, isLinked, isStale } from './_ops.js?v=f6a97dcc';
-import { formatSeconds } from './_time.js?v=f6a97dcc';
+import { el } from './_dom.js?v=14318a8d';
+import { activeAt, isLinked, isStale } from './_ops.js?v=14318a8d';
+import { formatSeconds } from './_time.js?v=14318a8d';
 
 export function createViewer() {
   const bar = el('div', { class: 'otl-s-bar' });

@@ -30,7 +30,7 @@ from otio_nodes.model import MEDIA_KEY_PREFIX
 
 SLATE_SIZE = (1280, 720)
 AUDIO_EXTENSIONS = (".wav", ".wave", ".mp3", ".aif", ".aiff", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma")
-SILENCE_KEY = "griptape:silence"
+SILENCE_KEY = f"{MEDIA_KEY_PREFIX}silence"
 DEFAULT_HANDLE_SECONDS = 10.0
 FONT_CANDIDATES = (
     "/System/Library/Fonts/Helvetica.ttc",

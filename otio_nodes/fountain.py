@@ -57,8 +57,9 @@ def _strip_boneyard_and_notes(text: str) -> tuple[str, list[int], list[dict[str,
     origins: list[int] = []
     pos = 0
     for start, end in spans:
-        if start < pos:
+        if end <= pos:
             continue
+        start = max(start, pos)
         out.append(text[pos:start])
         origins.extend(line_at[pos:start])
         pos = end
@@ -68,11 +69,14 @@ def _strip_boneyard_and_notes(text: str) -> tuple[str, list[int], list[dict[str,
 
 
 def _with_own_line(text: str, start: int, end: int) -> tuple[int, int]:
-    """Widen a removed span to take its newline when it fills a whole line, so the line does not become a blank one."""
-    alone_before = start == 0 or text[start - 1] == "\n"
-    if alone_before and end < len(text) and text[end] == "\n":
-        return start, end + 1
-    return start, end
+    """Widen a removed span to its whole line when nothing else is on it, so the line does not become a blank one."""
+    line_start = text.rfind("\n", 0, start) + 1
+    line_end = text.find("\n", end)
+    if line_end < 0:
+        return start, end
+    if text[line_start:start].strip() or text[end:line_end].strip():
+        return start, end
+    return line_start, line_end + 1
 
 
 def _blank_boneyard(text: str) -> str:

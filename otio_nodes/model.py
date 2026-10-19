@@ -161,8 +161,12 @@ def total_frames(model: dict[str, Any]) -> int:
     return max((c["start"] + c["duration"] for t in model["tracks"] for c in t["clips"]), default=0)
 
 
-def validate_model(model: dict[str, Any]) -> None:
-    """Raise ValueError listing every problem: bad rate, unknown kind or role, bad times, overlapping clips."""
+def validate_model(model: dict[str, Any], *, remakes_media: bool = False) -> None:
+    """Raise ValueError listing every problem: bad rate, unknown kind or role, bad times, overlapping clips.
+
+    Media a clip has outgrown is a problem, unless `remakes_media` says the caller is about to make new placeholder
+    media (see `media.ensure_media`). Linked files are never remade, so they are always checked.
+    """
     problems: list[str] = []
     rate = model.get("rate", 0)
     if not isinstance(rate, int | float) or rate <= 0:
@@ -187,11 +191,11 @@ def validate_model(model: dict[str, Any]) -> None:
                 problems.append(f"{label}: overlaps the previous clip by {end - start} frames")
             end = max(end, start + duration)
             media = clip.get("media")
-            owned = str(media.get("key", "")).startswith(MEDIA_KEY_PREFIX) if media else False
-            # Placeholder media is remade when a clip outgrows it, so only linked files can be too short.
+            owned = bool(media) and str(media.get("key", "")).startswith(MEDIA_KEY_PREFIX)
+            skip_length = owned and remakes_media
             if (
                 media
-                and not owned
+                and not skip_length
                 and media.get("duration") is not None
                 and media["start"] + duration > media["duration"]
             ):

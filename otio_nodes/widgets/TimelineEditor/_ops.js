@@ -65,9 +65,6 @@ export function validate(model) {
       if (!Number.isInteger(clip.start) || !Number.isInteger(clip.duration)) problems.push(`${clip.name}: not whole frames`);
       if (clip.start < 0 || clip.duration < 1) problems.push(`${clip.name}: bad start or duration`);
       if (clip.start < end) problems.push(`${clip.name}: overlaps the previous clip`);
-      if (isLinked(clip.media) && Number.isInteger(clip.media.duration) && clip.media.start + clip.duration > clip.media.duration) {
-        problems.push(`${clip.name}: its media is too short for the clip`);
-      }
       if (ids.has(clip.id)) problems.push(`${clip.name}: duplicate id`);
       ids.add(clip.id);
       end = Math.max(end, endOf(clip));
@@ -75,6 +72,10 @@ export function validate(model) {
   }
   return problems;
 }
+
+// A linked clip cannot run past the end of its file, when the file's length is known.
+const fitsMedia = (clip) =>
+  !isLinked(clip.media) || !Number.isInteger(clip.media.duration) || clip.media.start + clip.duration <= clip.media.duration;
 
 const checked = (model) => (validate(model).length === 0 ? model : null);
 
@@ -296,7 +297,7 @@ export function updateClip(model, id, patch) {
     if (!(key in patch)) continue;
     found.clip[key] = key === 'start' || key === 'duration' ? Math.round(patch[key]) : patch[key];
   }
-  return checked(next);
+  return fitsMedia(found.clip) ? checked(next) : null;
 }
 
 // Every frame where a clip starts or ends, in order. These are the edit points the up and down arrows jump between.

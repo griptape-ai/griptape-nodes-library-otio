@@ -161,12 +161,6 @@ def test_otio_clips_use_external_references(tmp_path):
     assert all(isinstance(c.media_reference, otio.schema.ExternalReference) for c in timeline.find_clips())
 
 
-def test_a_slate_the_clip_outgrew_is_not_a_validation_error(tmp_path):
-    model = ensure_media(make_model(), tmp_path / "media", handle_seconds=0.0, encoder=FakeEncoder())
-    clips(model, "shots")[-1]["duration"] += 10
-    validate_model(model)  # saving remakes the slate, so it must not stop the save
-
-
 def test_saving_remakes_a_slate_the_clip_outgrew(tmp_path):
     from otio_nodes.node_helpers import save_timeline
 
@@ -500,3 +494,20 @@ def test_audio_files_get_an_m4a_viewer_copy_that_keeps_the_length(tmp_path):
     make_viewer_proxy(source, target, encoder, seen.append)
     assert target.exists() and abs((ffprobe_seconds(target) or 0) - 2) < 0.2
     assert source.stat().st_size > 0 and [p.name for p in target.parent.iterdir()] == [target.name]
+
+
+def test_an_outgrown_slate_is_an_error_unless_media_will_be_remade(tmp_path):
+    model = ensure_media(make_model(), tmp_path / "media", handle_seconds=0.0, encoder=FakeEncoder())
+    clips(model, "shots")[-1]["duration"] += 10
+    with pytest.raises(ValueError, match="too short"):
+        validate_model(model)
+    validate_model(model, remakes_media=True)
+
+
+def test_saving_without_placeholder_media_still_rejects_an_outgrown_slate(tmp_path):
+    from otio_nodes.node_helpers import save_timeline
+
+    _, model = save_timeline(make_model(), tmp_path, handle_seconds=1.0, encoder=FakeEncoder())
+    clips(model, "shots")[-1]["duration"] += 100
+    with pytest.raises(ValueError, match="too short"):
+        save_timeline(model, tmp_path, make_media=False)

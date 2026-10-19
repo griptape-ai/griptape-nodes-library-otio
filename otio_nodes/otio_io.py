@@ -228,8 +228,10 @@ def _from_otio_clip(clip: otio.schema.Clip, rate: float, fallback_id: str) -> di
     media = None
     reference = clip.media_reference
     if isinstance(reference, otio.schema.ExternalReference):
-        start = _frames(clip.source_range.start_time, rate) if clip.source_range is not None else 0
         available = reference.available_range
+        start = _frames(clip.source_range.start_time, rate) if clip.source_range is not None else 0
+        if available is not None:
+            start -= _frames(available.start_time, rate)  # media.start counts from the first frame of the file
         media = {
             "url": reference.target_url,
             "start": start,
