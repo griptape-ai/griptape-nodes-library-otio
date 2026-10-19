@@ -166,7 +166,7 @@ def otio_to_model(timeline: otio.schema.Timeline) -> dict[str, Any]:
                 if len(child.markers):
                     warnings.append(f"Dropped {len(child.markers)} marker(s) on clip '{child.name}'.")
                 try:
-                    clip_model = _from_otio_clip(child, rate, f"clip-{clip_count}")
+                    clip_model = _from_otio_clip(child, rate, f"clip-{clip_count}", warnings)
                 except otio.exceptions.OTIOError as e:
                     warnings.append(f"Skipped clip '{child.name}' on track '{track.name}': {e}")
                     continue
@@ -221,7 +221,7 @@ def _first_rate(timeline: otio.schema.Timeline) -> float | None:
     return None
 
 
-def _from_otio_clip(clip: otio.schema.Clip, rate: float, fallback_id: str) -> dict[str, Any]:
+def _from_otio_clip(clip: otio.schema.Clip, rate: float, fallback_id: str, warnings: list[str]) -> dict[str, Any]:
     info = _plain(clip.metadata.get(METADATA_KEY, {}))
     in_parent = clip.range_in_parent()
     meta = {k: v for k, v in info.items() if k not in ("id", "description", "color", "media_key", "media_shown")}
@@ -232,6 +232,9 @@ def _from_otio_clip(clip: otio.schema.Clip, rate: float, fallback_id: str) -> di
         start = _frames(clip.source_range.start_time, rate) if clip.source_range is not None else 0
         if available is not None:
             start -= _frames(available.start_time, rate)  # media.start counts from the first frame of the file
+            if start < 0:
+                warnings.append(f"Clip '{clip.name}' starts before its media. Its start in the media was set to 0.")
+                start = 0
         media = {
             "url": reference.target_url,
             "start": start,

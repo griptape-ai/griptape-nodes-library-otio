@@ -495,14 +495,14 @@ class TimelineEditor(SuccessFailureNode):
                 timeline = link_media(timeline, self._resolve_media, ffprobe_seconds)
             except ValueError as e:
                 raise NodeError(str(e)) from e
-        problems = self._problems(timeline, remakes_media=self._saves_with_media())
+        target = self._target()
+        make_media, handle_seconds = media_settings(self)
+        problems = self._problems(timeline, remakes_media=bool(target) and make_media)
         if problems or not isinstance(timeline, dict):
             raise NodeError("; ".join(problems) or "There is no timeline to edit.")
 
-        target = self._target()
         saved_path = ""
         if target:
-            make_media, handle_seconds = media_settings(self)
             try:
                 path, timeline = save_through_destination(
                     timeline, self._destination(target), make_media=make_media, handle_seconds=handle_seconds

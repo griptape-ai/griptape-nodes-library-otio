@@ -30,7 +30,7 @@ import {
   totalFrames,
   trimClip,
   updateClip,
-} from './_ops.js?v=14318a8d';
+} from './_ops.js?v=c033d6c2';
 import {
   BAND_HEIGHT,
   EDGE_PX,
@@ -42,13 +42,13 @@ import {
   SHOT_LANE_HEIGHT,
   SNAP_PX,
   ensureStyles,
-} from './_styles.js?v=14318a8d';
-import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=14318a8d';
-import { el, readableOn } from './_dom.js?v=14318a8d';
-import { createViewer } from './_viewer.js?v=14318a8d';
-import { createAudio } from './_audio.js?v=14318a8d';
-import { FOLDER_PATH, icon } from './_icons.js?v=14318a8d';
-import { createTooltip } from './_tooltip.js?v=14318a8d';
+} from './_styles.js?v=c033d6c2';
+import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=c033d6c2';
+import { el, readableOn } from './_dom.js?v=c033d6c2';
+import { createViewer } from './_viewer.js?v=c033d6c2';
+import { createAudio } from './_audio.js?v=c033d6c2';
+import { FOLDER_PATH, icon } from './_icons.js?v=c033d6c2';
+import { createTooltip } from './_tooltip.js?v=c033d6c2';
 
 const WIDGET_VERSION = '0.2.0';
 const sameModel = (a, b) => JSON.stringify(a) === JSON.stringify(b);

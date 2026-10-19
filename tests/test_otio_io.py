@@ -253,3 +253,27 @@ def test_foreign_media_start_counts_from_the_first_frame_of_the_file():
     media = otio_to_model(timeline)["tracks"][0]["clips"][0]["media"]
     assert media["start"] == 24
     assert media["duration"] == 240
+
+
+def test_a_clip_that_starts_before_its_media_gets_a_zero_start_and_a_warning():
+    rate = 24.0
+    reference = otio.schema.ExternalReference(
+        target_url="file:///plate.mov",
+        available_range=otio.opentime.TimeRange(
+            otio.opentime.RationalTime(100, rate), otio.opentime.RationalTime(240, rate)
+        ),
+    )
+    clip = otio.schema.Clip(
+        name="early",
+        media_reference=reference,
+        source_range=otio.opentime.TimeRange(
+            otio.opentime.RationalTime(90, rate), otio.opentime.RationalTime(24, rate)
+        ),
+    )
+    track = otio.schema.Track(name="V", kind=otio.schema.TrackKind.Video)
+    track.append(clip)
+    timeline = otio.schema.Timeline()
+    timeline.tracks.append(track)
+    model = otio_to_model(timeline)
+    assert model["tracks"][0]["clips"][0]["media"]["start"] == 0
+    assert any("starts before its media" in w for w in model["warnings"])

@@ -297,7 +297,8 @@ export function updateClip(model, id, patch) {
     if (!(key in patch)) continue;
     found.clip[key] = key === 'start' || key === 'duration' ? Math.round(patch[key]) : patch[key];
   }
-  return fitsMedia(found.clip) ? checked(next) : null;
+  if ('duration' in patch && !fitsMedia(found.clip)) return null; // other edits to an over-long clip are still allowed
+  return checked(next);
 }
 
 // Every frame where a clip starts or ends, in order. These are the edit points the up and down arrows jump between.

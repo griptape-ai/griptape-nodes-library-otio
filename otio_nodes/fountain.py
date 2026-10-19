@@ -49,10 +49,8 @@ def _strip_boneyard_and_notes(text: str) -> tuple[str, list[int], list[dict[str,
     notes = [
         {"text": " ".join(m.group(1).split()), "line": line_at[m.start()]} for m in NOTE.finditer(_blank_boneyard(text))
     ]
-    spans = [
-        _with_own_line(text, start, end)
-        for start, end in sorted([m.span() for m in BONEYARD.finditer(text)] + _note_spans(text))
-    ]
+    removed = sorted([m.span() for m in BONEYARD.finditer(text)] + _note_spans(text))
+    spans = [_with_own_line(text, start, end) for start, end in _merge_spans(text, removed)]
     out: list[str] = []
     origins: list[int] = []
     pos = 0
@@ -66,6 +64,20 @@ def _strip_boneyard_and_notes(text: str) -> tuple[str, list[int], list[dict[str,
     out.append(text[pos:])
     origins.extend(line_at[pos:])
     return "".join(out), origins, notes
+
+
+def _merge_spans(text: str, spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Join spans that overlap or sit on one line with only spaces between them, so they are removed as one."""
+    merged: list[tuple[int, int]] = []
+    for start, end in spans:
+        if merged:
+            last_start, last_end = merged[-1]
+            gap = text[last_end:start]
+            if start <= last_end or ("\n" not in gap and not gap.strip()):
+                merged[-1] = (last_start, max(last_end, end))
+                continue
+        merged.append((start, end))
+    return merged
 
 
 def _with_own_line(text: str, start: int, end: int) -> tuple[int, int]:

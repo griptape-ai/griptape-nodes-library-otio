@@ -493,3 +493,11 @@ test('a duration edit cannot run a linked clip past its file, and other edits st
   linked.duration = 90; // already too long, as from an imported file
   assert.notEqual(moveClip(model, 'b', 200), null);
 });
+
+test('an over-long linked clip can still be renamed', () => {
+  const linked = clip('a', 0, 90);
+  linked.media = { url: '/plate.mov', start: 10, duration: 50, key: '' };
+  const model = { rate: 24, tracks: [{ id: 't', name: 'T', kind: 'video', role: 'shots', clips: [linked] }], markers: [] };
+  assert.equal(findClip(updateClip(model, 'a', { name: 'renamed' }), 'a').clip.name, 'renamed');
+  assert.equal(updateClip(model, 'a', { duration: 91 }), null);
+});
