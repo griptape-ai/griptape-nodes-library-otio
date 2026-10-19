@@ -7,7 +7,7 @@ from otio_nodes.fountain import parse
 from otio_nodes.media import ensure_media
 from otio_nodes.model import build_model
 from otio_nodes.node_helpers import clean_file_name, save_timeline
-from otio_nodes.otio_io import read_otio
+from otio_nodes.otio_io import from_json
 from otio_nodes.output_directory import (
     map_to_project_macro,
     next_version,
@@ -82,7 +82,7 @@ def test_save_timeline_writes_file_and_media_into_the_folder(tmp_path: Path):
     assert path == str(tmp_path / "out" / "film.otio")
     assert list((tmp_path / "out" / "media").glob("slate_shot-001_*.mov"))
     assert list((tmp_path / "out" / "media").glob("silence_*f.mov"))
-    assert read_otio(path) == saved
+    assert from_json(Path(path).read_text()) == saved
 
 
 def test_save_timeline_without_media_and_replacing(tmp_path: Path):
@@ -167,7 +167,7 @@ def test_save_through_a_destination_that_knows_its_path_writes_once(tmp_path: Pa
     assert path == tmp_path / "out" / "film_edited.otio"
     assert destination.writes == 1
     assert list((tmp_path / "out" / "media").glob("slate_shot-001_*.mov"))
-    assert read_otio(path) == saved
+    assert from_json(Path(path).read_text()) == saved
 
 
 def test_save_through_a_destination_that_cannot_resolve_writes_then_adds_media(tmp_path: Path):
@@ -177,7 +177,7 @@ def test_save_through_a_destination_that_cannot_resolve_writes_then_adds_media(t
     path, saved = save_through_destination(make_model(), destination, handle_seconds=1.0, encoder=FakeEncoder())
     assert destination.writes == 1, "the same file is overwritten the second time, not written again as a new version"
     assert list((tmp_path / "out" / "media").glob("slate_shot-001_*.mov"))
-    assert read_otio(path) == saved
+    assert from_json(Path(path).read_text()) == saved
     assert saved["tracks"][0]["clips"][0]["media"] is not None
 
 

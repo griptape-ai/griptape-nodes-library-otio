@@ -10,7 +10,6 @@ when writing and dropped when reading, so they always match the clips. No engine
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from pathlib import Path
 from typing import Any
 
 import opentimelineio as otio
@@ -269,32 +268,8 @@ def from_json(text: str) -> dict[str, Any]:
     return otio_to_model(_as_timeline(otio.adapters.read_from_string(text, "otio_json")))
 
 
-def write_otio(model: dict[str, Any], path: str | Path) -> Path:
-    """Write the model as an .otio file at `path`. Raises if the file exists, so versions are never overwritten."""
-    target = Path(path)
-    if target.exists():
-        msg = f"{target} already exists. Choose a new version name instead of overwriting."
-        raise FileExistsError(msg)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    otio.adapters.write_to_file(model_to_otio(model), str(target), "otio_json")
-    return target
-
-
-def read_otio(path: str | Path) -> dict[str, Any]:
-    return otio_to_model(_as_timeline(otio.adapters.read_from_file(str(path), "otio_json")))
-
-
 def _as_timeline(obj: Any) -> otio.schema.Timeline:
     if isinstance(obj, otio.schema.Timeline):
         return obj
     msg = f"Expected an OTIO Timeline, got {type(obj).__name__}"
     raise ValueError(msg)
-
-
-def next_version_path(directory: str | Path, stem: str, suffix: str = ".otio") -> Path:
-    """Return directory/stem_v001.otio, or the next free version number."""
-    folder = Path(directory)
-    version = 1
-    while (folder / f"{stem}_v{version:03d}{suffix}").exists():
-        version += 1
-    return folder / f"{stem}_v{version:03d}{suffix}"

@@ -10,11 +10,8 @@ from otio_nodes.otio_io import (
     METADATA_KEY,
     from_json,
     model_to_otio,
-    next_version_path,
     otio_to_model,
-    read_otio,
     to_json,
-    write_otio,
 )
 
 TEXT = """Title: Test
@@ -189,37 +186,24 @@ def test_other_rates_are_rescaled():
     assert otio_to_model(timeline)["tracks"][0]["clips"][0]["duration"] == 48
 
 
-def test_write_refuses_to_overwrite_and_reads_back(tmp_path):
+def test_a_saved_timeline_reads_back_the_same():
     model = make_model()
-    path = write_otio(model, tmp_path / "out_v001.otio")
-    assert path.exists()
-    with pytest.raises(FileExistsError):
-        write_otio(model, path)
-    assert read_otio(path) == model
+    assert from_json(to_json(model)) == model
 
 
-def test_next_version_path(tmp_path):
-    assert next_version_path(tmp_path, "film").name == "film_v001.otio"
-    (tmp_path / "film_v001.otio").write_text("x")
-    (tmp_path / "film_v002.otio").write_text("x")
-    assert next_version_path(tmp_path, "film").name == "film_v003.otio"
-
-
-def test_invalid_model_is_rejected_before_writing(tmp_path):
+def test_invalid_model_is_rejected_before_writing():
     model = make_model()
     model["tracks"][0]["clips"][0]["duration"] = 0
     with pytest.raises(ValueError, match="Invalid timeline"):
-        write_otio(model, tmp_path / "bad.otio")
-    assert not (tmp_path / "bad.otio").exists()
+        to_json(model)
 
 
 @pytest.mark.skipif(not SCRIPT.exists(), reason="project script not available")
-def test_real_script_round_trips_and_has_a_sensible_length(tmp_path):
+def test_real_script_round_trips_and_has_a_sensible_length():
     model = make_model(SCRIPT.read_text(encoding="utf-8"))
     seconds = total_frames(model) / model["rate"]
     assert 60 < seconds < 400
-    path = write_otio(model, tmp_path / "jonh_v001.otio")
-    assert read_otio(path) == model
+    assert from_json(to_json(model)) == model
 
 
 def test_markers_on_clips_and_on_the_timeline_are_reported_when_dropped():

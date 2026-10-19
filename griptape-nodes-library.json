@@ -14,7 +14,9 @@
         ],
         "dependencies": {
             "pip_dependencies": [
-                "OpenTimelineIO>=0.17.0"
+                "OpenTimelineIO>=0.17.0",
+                "Pillow>=10.0.0",
+                "static-ffmpeg>=2.5"
             ]
         }
     },
