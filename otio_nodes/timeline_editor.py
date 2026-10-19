@@ -66,6 +66,7 @@ def edited_name(source: str | Path) -> str:
 PREVIEW_FOLDER = "{griptape-nodes-previews}/otio"
 PREVIEW_KEYS = ("previews", "preparing", "preview_errors")
 PROGRESS_SECONDS = 0.7
+PATCH_ATTEMPTS = 5
 
 
 class TimelineEditor(SuccessFailureNode):
@@ -284,18 +285,30 @@ class TimelineEditor(SuccessFailureNode):
         threading.Thread(target=self._make_preview, args=(address, path, target), daemon=True).start()
 
     def _patch_timeline(self, change: Callable[[dict[str, Any]], None]) -> None:
-        """Change the preview maps in the timeline the editor holds now, and nothing else, so edits are never undone."""
-        with self._preview_lock:
-            current = self.get_parameter_value("edited_timeline")
-            if not isinstance(current, dict) or not current.get("tracks"):
+        """Change the preview maps in the timeline the editor holds now, and nothing else, so edits are never undone.
+
+        This runs on a preview thread while the editor can change the same value from another. The patch is made on a
+        copy, and the copy is only stored if the value is still what the patch started from. If an edit arrived in the
+        meantime the patch is made again on the new value. A last edit landing between that check and the store is
+        still possible, but the window is a few instructions wide. The editor also ignores a preview-only update that
+        would drop an edit it holds.
+        """
+        for attempt in range(PATCH_ATTEMPTS):
+            with self._preview_lock:
+                current = self.get_parameter_value("edited_timeline")
+                if not isinstance(current, dict) or not current.get("tracks"):
+                    return
+                before = copy.deepcopy(current)
+                updated = copy.deepcopy(before)
+                change(updated)
+                for key in PREVIEW_KEYS:
+                    if not updated.get(key):
+                        updated.pop(key, None)
+                if self.get_parameter_value("edited_timeline") != before and attempt < PATCH_ATTEMPTS - 1:
+                    continue
+                self.set_parameter_value("edited_timeline", updated)
+                self.publish_update_to_parameter("edited_timeline", updated)
                 return
-            updated = copy.deepcopy(current)
-            change(updated)
-            for key in PREVIEW_KEYS:
-                if not updated.get(key):
-                    updated.pop(key, None)
-            self.set_parameter_value("edited_timeline", updated)
-            self.publish_update_to_parameter("edited_timeline", updated)
 
     def _make_preview(self, address: str, path: Path, target: Path) -> None:
         last = [0.0]

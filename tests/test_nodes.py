@@ -1093,3 +1093,20 @@ def test_a_muted_track_survives_running_the_editor(tmp_path: Path):
     after = node.get_parameter_value("edited_timeline")
     assert next(t for t in after["tracks"] if t["role"] == "sfx").get("muted") is True
     assert "muted" not in node.parameter_output_values["edited_otio"], "mute is for playback and is not in the OTIO"
+
+
+def test_a_preview_patch_does_not_undo_an_edit_made_while_it_ran(tmp_path: Path):
+    node = new_editor(otio=to_json(built()))
+    edited = {"done": False}
+
+    def change(timeline: dict) -> None:
+        if not edited["done"]:
+            edited["done"] = True
+            # The editor changes the stored timeline while the preview thread is working on its copy.
+            node.get_parameter_value("edited_timeline")["tracks"][0]["clips"][0]["name"] = "Edited meanwhile"
+        timeline.setdefault("previews", {})["a"] = "http://x/a.mp4"
+
+    node._patch_timeline(change)
+    now = node.get_parameter_value("edited_timeline")
+    assert now["tracks"][0]["clips"][0]["name"] == "Edited meanwhile"
+    assert now["previews"] == {"a": "http://x/a.mp4"}
