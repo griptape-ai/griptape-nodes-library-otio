@@ -9,11 +9,11 @@ import pytest
 from otio_nodes.load_fountain_script import LoadFountainScript
 from otio_nodes.load_otio import LoadOTIO
 from otio_nodes.otio_io import from_json
-from otio_nodes.otio_to_fountain import OTIOToFountain
 from otio_nodes.output_directory import to_project_path
 from otio_nodes.save_otio import SaveOTIO
 from otio_nodes.script_to_timeline import ScriptToTimeline
 from otio_nodes.timeline_editor import TimelineEditor
+from otio_nodes.timeline_to_fountain import TimelineToFountain
 from tests.test_nodes import FakeEncoder, built, loaded, run
 
 SCRIPT = "Title: Macro Test\n\nINT. ROOM - DAY\n\nJACK\nHello there my good friend today.\n\nCLOSE UP of Jack.\n"
@@ -62,19 +62,18 @@ def test_every_node_gives_and_takes_macro_paths(scratch_outputs):
     read = LoadOTIO(name="read")
     read.set_parameter_value("otio_file", edited)
     run(read)
-    assert from_json(read.parameter_output_values["otio"])["title"] == "Macro Test"
+    assert read.parameter_output_values["timeline"]["title"] == "Macro Test"
 
-    fountain = OTIOToFountain(name="fountain")
+    fountain = TimelineToFountain(name="fountain")
     fountain.set_parameter_value("save_fountain", False)
-    fountain.set_parameter_value("source", "file")
-    fountain.set_parameter_value("otio_file", edited)
+    fountain.set_parameter_value("timeline", read.parameter_output_values["timeline"])
     run(fountain)
     assert "INT. ROOM - DAY" in fountain.parameter_output_values["fountain"]
 
     write = SaveOTIO(name="write")
     write.set_parameter_value("placeholder_media", False)
     write.set_parameter_value("directory", f"{macro}/written")
-    write.set_parameter_value("otio", read.parameter_output_values["otio"])
+    write.set_parameter_value("timeline", read.parameter_output_values["timeline"])
     run(write)
     assert write.parameter_output_values["otio_path"] == f"{macro}/written/timeline.otio"
     assert write.parameter_output_values["output_directory"] == f"{macro}/written"
@@ -93,10 +92,9 @@ def test_the_editor_saves_to_a_macro_output_file(scratch_outputs):
     folder, macro = scratch_outputs
     node = TimelineEditor(name="editor")
     node.set_parameter_value("placeholder_media", False)
-    node.set_parameter_value("source", "text")
-    from otio_nodes.otio_io import to_json
+    node.set_parameter_value("source", "timeline")
 
-    node.set_parameter_value("otio", to_json(built()))
+    node.set_parameter_value("timeline", built())
     node.set_parameter_value("output_file", f"{macro}/cuts/cut.otio")
     run(node)
     assert (folder / "cuts" / "cut.otio").exists()

@@ -14,8 +14,12 @@ from griptape_nodes.exe_types.param_types.parameter_string import ParameterStrin
 from otio_nodes.breakdown import DEFAULT_SHOT_CUES, BreakdownSettings, breakdown
 from otio_nodes.model import build_model, total_frames
 from otio_nodes.node_helpers import parse_cue_lines, save_timeline, timeline_summary
-from otio_nodes.node_params import create_output_parameters, on_output_value_set, output_settings
-from otio_nodes.otio_io import to_json
+from otio_nodes.node_params import (
+    create_output_parameters,
+    on_output_value_set,
+    output_settings,
+    timeline_parameter,
+)
 from otio_nodes.output_directory import OutputDirectory, to_project_path, unmapped_reason
 
 __all__ = ["ScriptToTimeline"]
@@ -127,15 +131,10 @@ class ScriptToTimeline(SuccessFailureNode):
             self._folder = create_output_parameters(self)
         self.add_node_element(otio_group)
         self.add_parameter(
-            ParameterString(
-                name="otio",
-                tooltip="The timeline as OpenTimelineIO text, ready to connect to another node. It is made each time the node runs and is not saved with the workflow.",
-                placeholder_text="The OTIO text will appear here",
-                multiline=True,
-                allow_variable_substitution=False,
-                allowed_modes={ParameterMode.OUTPUT},
-                hide_property=True,
-                serializable=False,
+            timeline_parameter(
+                "timeline",
+                "The timeline, ready to connect to another node. It is made each time the node runs and is not saved with the workflow.",
+                output=True,
             )
         )
         self.add_parameter(
@@ -196,7 +195,7 @@ class ScriptToTimeline(SuccessFailureNode):
         try:
             yield lambda: self._build()
         except Exception as e:
-            self.parameter_output_values["otio"] = ""
+            self.parameter_output_values["timeline"] = None
             self.parameter_output_values["runtime_seconds"] = 0.0
             self.parameter_output_values["summary"] = ""
             self.parameter_output_values["otio_path"] = ""
@@ -243,7 +242,7 @@ class ScriptToTimeline(SuccessFailureNode):
             details += f" Saved {otio_path}."
             if not output_directory.startswith("{"):
                 details += f" The folder is shown as an absolute path. {unmapped_reason(output_directory)}"
-        self.parameter_output_values["otio"] = to_json(model, compact=True)
+        self.parameter_output_values["timeline"] = model
         self.parameter_output_values["runtime_seconds"] = round(seconds, 2)
         self.parameter_output_values["summary"] = timeline_summary(model)
         self.parameter_output_values["otio_path"] = otio_path

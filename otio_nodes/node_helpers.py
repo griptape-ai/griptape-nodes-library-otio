@@ -7,7 +7,27 @@ from typing import Any
 
 from otio_nodes.media import DEFAULT_HANDLE_SECONDS, Encoder, ensure_media
 from otio_nodes.model import total_frames, validate_model
-from otio_nodes.otio_io import to_json
+from otio_nodes.otio_io import from_json, to_json
+
+
+def as_timeline(value: Any) -> dict[str, Any] | None:
+    """The timeline dict from a node's value: the dict itself, or OTIO text typed or pasted in. None when it is empty.
+
+    The nodes pass the editable timeline (see model.py) between them as a dict. It is well under half the size of the
+    OTIO text for the same timeline, and it needs no parsing. OTIO text is still accepted so it can be pasted in.
+    """
+    if isinstance(value, dict):
+        return value if value.get("tracks") is not None else None
+    text = str(value or "").strip()
+    return from_json(text) if text else None
+
+
+# What the editor adds to the timeline for its own use. It is not part of the timeline another node should receive.
+EDITOR_ONLY_KEYS = ("previews", "preparing", "preview_errors", "selected", "reload")
+
+
+def without_editor_keys(model: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in model.items() if key not in EDITOR_ONLY_KEYS}
 
 
 def parse_cue_lines(text: str | None) -> list[str]:

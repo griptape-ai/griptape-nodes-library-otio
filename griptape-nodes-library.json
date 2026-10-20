@@ -44,7 +44,13 @@
             "metadata": {
                 "category": "timeline",
                 "description": "Read a Fountain screenplay and break it into scenes, action, dialogue and transitions.",
-                "display_name": "Load Fountain Script"
+                "display_name": "Load Fountain Script",
+                "declarations": [
+                    {
+                        "type": "lifecycle_stage",
+                        "stage": "BETA"
+                    }
+                ]
             }
         },
         {
@@ -53,7 +59,13 @@
             "metadata": {
                 "category": "timeline",
                 "description": "Turn a parsed script into a timeline of shots and sequences, with lengths from the dialogue.",
-                "display_name": "Script to Timeline"
+                "display_name": "Script to Timeline",
+                "declarations": [
+                    {
+                        "type": "lifecycle_stage",
+                        "stage": "BETA"
+                    }
+                ]
             }
         },
         {
@@ -62,16 +74,28 @@
             "metadata": {
                 "category": "timeline",
                 "description": "Save a timeline as an OpenTimelineIO (.otio) file.",
-                "display_name": "Save OTIO"
+                "display_name": "Save OTIO",
+                "declarations": [
+                    {
+                        "type": "lifecycle_stage",
+                        "stage": "BETA"
+                    }
+                ]
             }
         },
         {
-            "class_name": "OTIOToMovie",
-            "file_path": "otio_nodes/otio_to_movie.py",
+            "class_name": "TimelineToMovie",
+            "file_path": "otio_nodes/timeline_to_movie.py",
             "metadata": {
                 "category": "timeline",
                 "description": "Render a timeline to a movie with sound.",
-                "display_name": "OTIO to Movie"
+                "display_name": "Timeline to Movie",
+                "declarations": [
+                    {
+                        "type": "lifecycle_stage",
+                        "stage": "BETA"
+                    }
+                ]
             }
         },
         {
@@ -80,7 +104,13 @@
             "metadata": {
                 "category": "timeline",
                 "description": "Load an OpenTimelineIO (.otio) file into an editable timeline.",
-                "display_name": "Load OTIO"
+                "display_name": "Load OTIO",
+                "declarations": [
+                    {
+                        "type": "lifecycle_stage",
+                        "stage": "BETA"
+                    }
+                ]
             }
         },
         {
@@ -89,16 +119,28 @@
             "metadata": {
                 "category": "timeline",
                 "description": "Edit a timeline's shots, dialogue and sound clips on a timeline widget.",
-                "display_name": "Timeline Editor"
+                "display_name": "Timeline Editor",
+                "declarations": [
+                    {
+                        "type": "lifecycle_stage",
+                        "stage": "BETA"
+                    }
+                ]
             }
         },
         {
-            "class_name": "OTIOToFountain",
-            "file_path": "otio_nodes/otio_to_fountain.py",
+            "class_name": "TimelineToFountain",
+            "file_path": "otio_nodes/timeline_to_fountain.py",
             "metadata": {
                 "category": "timeline",
                 "description": "Turn a timeline back into a Fountain script, with edits carried over.",
-                "display_name": "OTIO to Fountain"
+                "display_name": "Timeline to Fountain",
+                "declarations": [
+                    {
+                        "type": "lifecycle_stage",
+                        "stage": "BETA"
+                    }
+                ]
             }
         }
     ],

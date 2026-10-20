@@ -8,9 +8,13 @@ from griptape_nodes.exe_types.core_types import NodeError, Parameter, ParameterG
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 from griptape_nodes.exe_types.param_types.parameter_string import ParameterString
 
-from otio_nodes.node_helpers import save_timeline
-from otio_nodes.node_params import create_output_parameters, on_output_value_set, output_settings
-from otio_nodes.otio_io import from_json
+from otio_nodes.node_helpers import as_timeline, save_timeline
+from otio_nodes.node_params import (
+    create_output_parameters,
+    on_output_value_set,
+    output_settings,
+    timeline_parameter,
+)
 from otio_nodes.output_directory import OutputDirectory, to_project_path
 
 __all__ = ["SaveOTIO"]
@@ -29,13 +33,8 @@ class SaveOTIO(SuccessFailureNode):
         super().__init__(**kwargs)
         self._folder: OutputDirectory | None = None
         self.add_parameter(
-            ParameterString(
-                name="otio",
-                tooltip="The timeline as OpenTimelineIO text, for example from Script to Timeline or Load OTIO.",
-                placeholder_text="Connect OTIO text",
-                multiline=True,
-                allowed_modes={ParameterMode.INPUT},
-                hide_property=True,
+            timeline_parameter(
+                "timeline", "The timeline, for example from Script to Timeline, Load OTIO or Timeline Editor."
             )
         )
         with ParameterGroup(name="output_settings", ui_options={"display_name": "Output Settings"}) as output_group:
@@ -71,10 +70,10 @@ class SaveOTIO(SuccessFailureNode):
 
     def validate_before_node_run(self) -> list[Exception] | None:
         exceptions = list(super().validate_before_node_run() or [])
-        if not str(self.get_parameter_value("otio") or "").strip():
+        if not self.get_parameter_value("timeline"):
             exceptions.append(
                 NodeError(
-                    "There is no timeline to save. Connect 'OTIO' from Script to Timeline, Load OTIO or Timeline Editor."
+                    "There is no timeline to save. Connect 'Timeline' from Script to Timeline, Load OTIO or Timeline Editor."
                 )
             )
         return exceptions or None
@@ -91,10 +90,13 @@ class SaveOTIO(SuccessFailureNode):
 
     def _save(self) -> None:
         try:
-            timeline = from_json(str(self.get_parameter_value("otio")))
+            timeline = as_timeline(self.get_parameter_value("timeline"))
         except Exception as e:
-            msg = f"The connected text is not a readable OpenTimelineIO timeline: {e}"
+            msg = f"The connected value is not a readable timeline: {e}"
             raise NodeError(msg) from e
+        if timeline is None:
+            msg = "There is no timeline to save."
+            raise NodeError(msg)
         if self._folder is None:
             msg = "The output folder is not set up."
             raise NodeError(msg)
