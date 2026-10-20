@@ -48,6 +48,8 @@ const CSS = `
 .otl-clip.dragging { cursor:grabbing; opacity:.85; }
 .otl-clip.selected { outline:2px solid #fff; outline-offset:-2px; z-index:3; }
 .otl-clip.off { opacity:.4; background-image:repeating-linear-gradient(135deg,rgba(0,0,0,.25) 0 4px,transparent 4px 8px); }
+.otl-clip .wave, .otl-clip .otl-wave { position:absolute; inset:2px 0; width:100%; height:calc(100% - 4px); pointer-events:none; }
+.otl-clip .n, .otl-clip .d { position:relative; }
 .otl-clip .n { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .otl-clip .d { font-size:10px; opacity:.75; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .otl-clip .h { position:absolute; top:0; bottom:0; width:${EDGE_PX}px; cursor:ew-resize; }
