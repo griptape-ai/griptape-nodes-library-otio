@@ -16,6 +16,7 @@ from otio_nodes.model import build_model, total_frames
 from otio_nodes.node_helpers import parse_cue_lines, save_timeline, timeline_summary
 from otio_nodes.node_params import (
     create_output_parameters,
+    create_status_parameters,
     on_output_value_set,
     output_settings,
     timeline_parameter,
@@ -171,7 +172,8 @@ class ScriptToTimeline(SuccessFailureNode):
                 allowed_modes={ParameterMode.OUTPUT},
             )
         self.add_node_element(summary_group)
-        self._create_status_parameters(
+        create_status_parameters(
+            self,
             result_details_tooltip="Details about the build result or any errors",
             result_details_placeholder="Build status will appear here.",
         )

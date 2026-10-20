@@ -11,6 +11,7 @@ from griptape_nodes.exe_types.param_types.parameter_string import ParameterStrin
 from otio_nodes.node_helpers import as_timeline, save_timeline
 from otio_nodes.node_params import (
     create_output_parameters,
+    create_status_parameters,
     on_output_value_set,
     output_settings,
     timeline_parameter,
@@ -58,7 +59,8 @@ class SaveOTIO(SuccessFailureNode):
                 allowed_modes={ParameterMode.OUTPUT},
             )
         )
-        self._create_status_parameters(
+        create_status_parameters(
+            self,
             result_details_tooltip="Details about the save result or any errors",
             result_details_placeholder="Save status will appear here.",
         )

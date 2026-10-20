@@ -1156,3 +1156,20 @@ def test_a_relative_output_file_is_saved_through_the_project_not_the_working_fol
     monkeypatch.setattr(node._output_file, "build_file", lambda **_: Destination())
     run(node)
     assert asked and asked[0].exists(), "written through the destination the project built"
+
+
+def test_result_details_may_hold_a_project_macro_without_unresolving_the_node():
+    from otio_nodes.timeline_editor import TimelineEditor
+    from otio_nodes.timeline_to_movie import TimelineToMovie
+
+    for node_class in (
+        LoadFountainScript,
+        ScriptToTimeline,
+        LoadOTIO,
+        SaveOTIO,
+        TimelineToFountain,
+        TimelineToMovie,
+        TimelineEditor,
+    ):
+        details = node_class(name="n").get_parameter_by_name("result_details")
+        assert details is not None and details.allow_variable_substitution is False, node_class.__name__

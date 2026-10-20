@@ -14,7 +14,7 @@ from griptape_nodes.exe_types.param_types.parameter_string import ParameterStrin
 from otio_nodes.fountain import parse
 from otio_nodes.fountain_writer import write_fountain
 from otio_nodes.node_helpers import as_timeline
-from otio_nodes.node_params import timeline_parameter
+from otio_nodes.node_params import create_status_parameters, timeline_parameter
 from otio_nodes.output_directory import to_project_path
 
 __all__ = ["TimelineToFountain"]
@@ -83,7 +83,8 @@ class TimelineToFountain(SuccessFailureNode):
                 allowed_modes={ParameterMode.OUTPUT},
             )
         )
-        self._create_status_parameters(
+        create_status_parameters(
+            self,
             result_details_tooltip="Details about the result or any errors",
             result_details_placeholder="Status will appear here.",
         )

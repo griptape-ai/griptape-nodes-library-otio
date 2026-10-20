@@ -41,6 +41,7 @@ from otio_nodes.node_helpers import as_timeline, save_through_destination, witho
 from otio_nodes.node_params import (
     PLACEHOLDER_MEDIA,
     create_media_parameters,
+    create_status_parameters,
     media_settings,
     sync_visibility,
     timeline_parameter,
@@ -182,7 +183,8 @@ class TimelineEditor(SuccessFailureNode):
                 allowed_modes={ParameterMode.OUTPUT},
             )
         )
-        self._create_status_parameters(
+        create_status_parameters(
+            self,
             result_details_tooltip="Details about the save result or any errors",
             result_details_placeholder="Save status will appear here.",
         )

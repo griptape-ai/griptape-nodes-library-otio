@@ -17,7 +17,7 @@ from griptape_nodes.files.file import File
 
 from otio_nodes.media import url_to_path
 from otio_nodes.node_helpers import as_timeline
-from otio_nodes.node_params import timeline_parameter
+from otio_nodes.node_params import create_status_parameters, timeline_parameter
 from otio_nodes.output_directory import to_project_path
 from otio_nodes.render import DEFAULT_CRF, DEFAULT_SIZE, RenderSettings, render_movie
 
@@ -97,7 +97,8 @@ class TimelineToMovie(SuccessFailureNode):
                 pulse_on_run=True,
             )
         )
-        self._create_status_parameters(
+        create_status_parameters(
+            self,
             result_details_tooltip="Details about the render result or any errors",
             result_details_placeholder="Render status will appear here.",
         )

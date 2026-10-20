@@ -11,7 +11,7 @@ from griptape_nodes.files.file import File
 from griptape_nodes.traits.file_system_picker import FileSystemPicker
 
 from otio_nodes.node_helpers import timeline_summary
-from otio_nodes.node_params import timeline_parameter
+from otio_nodes.node_params import create_status_parameters, timeline_parameter
 from otio_nodes.otio_io import from_json
 
 __all__ = ["LoadOTIO"]
@@ -52,7 +52,8 @@ class LoadOTIO(SuccessFailureNode):
                 allowed_modes={ParameterMode.OUTPUT},
             )
         )
-        self._create_status_parameters(
+        create_status_parameters(
+            self,
             result_details_tooltip="Details about the load result or any errors",
             result_details_placeholder="Load status will appear here.",
         )
