@@ -260,3 +260,15 @@ def test_a_clip_that_starts_before_its_media_gets_a_zero_start_and_a_warning():
     model = otio_to_model(timeline)
     assert model["tracks"][0]["clips"][0]["media"]["start"] == 0
     assert any("starts before its media" in w for w in model["warnings"])
+
+
+def test_compact_text_is_much_smaller_and_reads_back_the_same():
+    from otio_nodes.breakdown import breakdown
+    from otio_nodes.fountain import parse
+    from otio_nodes.model import build_model
+
+    text = Path(__file__).parent.joinpath("fixtures", "sample_script.fountain").read_text(encoding="utf-8")
+    model = build_model(breakdown(parse(text)))
+    compact = to_json(model, compact=True)
+    assert len(compact) < len(to_json(model)) / 2
+    assert from_json(compact) == from_json(to_json(model))

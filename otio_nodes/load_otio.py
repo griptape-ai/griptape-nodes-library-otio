@@ -41,6 +41,7 @@ class LoadOTIO(SuccessFailureNode):
                 tooltip="The timeline as OpenTimelineIO text, ready to connect to another node. It is made each time the node runs and is not saved with the workflow.",
                 placeholder_text="The OTIO text will appear here",
                 multiline=True,
+                allow_variable_substitution=False,
                 allowed_modes={ParameterMode.OUTPUT},
                 hide_property=True,
                 serializable=False,
@@ -88,6 +89,6 @@ class LoadOTIO(SuccessFailureNode):
         except Exception as e:
             msg = f"'{path}' is not a readable OpenTimelineIO timeline: {e}"
             raise NodeError(msg) from e
-        self.parameter_output_values["otio"] = to_json(model)
+        self.parameter_output_values["otio"] = to_json(model, compact=True)
         self.parameter_output_values["summary"] = timeline_summary(model)
         self._set_status_results(was_successful=True, result_details=f"Loaded {path}")

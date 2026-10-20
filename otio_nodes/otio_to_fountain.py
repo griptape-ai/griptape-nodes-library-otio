@@ -110,6 +110,7 @@ class OTIOToFountain(SuccessFailureNode):
                 name="fountain_file",
                 tooltip="Where the .fountain file was saved, empty if it was not saved.",
                 placeholder_text="The saved .fountain path will appear here",
+                allow_variable_substitution=False,
                 allowed_modes={ParameterMode.OUTPUT},
             )
         )

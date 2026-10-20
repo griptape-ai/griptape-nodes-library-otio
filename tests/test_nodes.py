@@ -1110,3 +1110,18 @@ def test_a_preview_patch_does_not_undo_an_edit_made_while_it_ran(tmp_path: Path)
     now = node.get_parameter_value("edited_timeline")
     assert now["tracks"][0]["clips"][0]["name"] == "Edited meanwhile"
     assert now["previews"] == {"a": "http://x/a.mp4"}
+
+
+def test_outputs_that_hold_project_macros_are_not_scanned_for_variables():
+    """A {outputs}/... value in a parameter that allows substitution marks the node dirty before every run."""
+    from otio_nodes.otio_to_fountain import OTIOToFountain
+
+    wanted = {
+        ScriptToTimeline: ("otio", "otio_path", "output_directory"),
+        SaveOTIO: ("otio_path", "output_directory"),
+        OTIOToFountain: ("fountain_file",),
+    }
+    for node_class, names in wanted.items():
+        node = node_class(name="n")
+        for name in names:
+            assert node.get_parameter_by_name(name).allow_variable_substitution is False, (node_class.__name__, name)

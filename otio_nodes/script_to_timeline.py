@@ -132,6 +132,7 @@ class ScriptToTimeline(SuccessFailureNode):
                 tooltip="The timeline as OpenTimelineIO text, ready to connect to another node. It is made each time the node runs and is not saved with the workflow.",
                 placeholder_text="The OTIO text will appear here",
                 multiline=True,
+                allow_variable_substitution=False,
                 allowed_modes={ParameterMode.OUTPUT},
                 hide_property=True,
                 serializable=False,
@@ -142,6 +143,7 @@ class ScriptToTimeline(SuccessFailureNode):
                 name="otio_path",
                 placeholder_text="The saved .otio path will appear here",
                 tooltip="Where the .otio file was saved, empty if it was not saved.",
+                allow_variable_substitution=False,
                 allowed_modes={ParameterMode.OUTPUT},
             )
         )
@@ -150,6 +152,7 @@ class ScriptToTimeline(SuccessFailureNode):
                 name="output_directory",
                 placeholder_text="The output folder will appear here",
                 tooltip="The folder the file and media were saved in, empty if nothing was saved.",
+                allow_variable_substitution=False,
                 allowed_modes={ParameterMode.OUTPUT},
             )
         )
@@ -240,7 +243,7 @@ class ScriptToTimeline(SuccessFailureNode):
             details += f" Saved {otio_path}."
             if not output_directory.startswith("{"):
                 details += f" The folder is shown as an absolute path. {unmapped_reason(output_directory)}"
-        self.parameter_output_values["otio"] = to_json(model)
+        self.parameter_output_values["otio"] = to_json(model, compact=True)
         self.parameter_output_values["runtime_seconds"] = round(seconds, 2)
         self.parameter_output_values["summary"] = timeline_summary(model)
         self.parameter_output_values["otio_path"] = otio_path
