@@ -997,7 +997,7 @@ async def build_workflow() -> None:
             await GriptapeNodes.ahandle_request(
                 AddParameterToNodeRequest(
                     parameter_name="script_file",
-                    default_value="/Volumes/griptape/jonh-and-his-dog/10_preproduction/script/jonhAndHisDog_script_v003.fountain",
+                    default_value="",
                     tooltip="New parameter",
                     type="str",
                     input_types=["any"],
