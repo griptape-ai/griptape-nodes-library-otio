@@ -57,6 +57,11 @@ MEDIA_EXTENSIONS = [
 ]  # fmt: skip
 
 
+def is_relative_name(name: str) -> bool:
+    """True for a plain relative path such as tests/blah.otio. A macro, a URL, a home folder or an absolute path is not."""
+    return bool(name) and not name.startswith(("{", "~")) and "://" not in name and not Path(name).is_absolute()
+
+
 def edited_name(source: str | Path) -> str:
     """Return the file name for the edited copy of `source`: `film.otio` becomes `film_edited.otio`."""
     stem = Path(source).stem
@@ -469,10 +474,15 @@ class TimelineEditor(SuccessFailureNode):
             self._set_status_results(was_successful=False, result_details=f"Run failed: {e}")
             self._handle_failure_exception(e)
 
+    def _chosen_output(self) -> str:
+        """What was typed or picked in 'Output File', or "" when it is still the default name."""
+        chosen = str(self.get_parameter_value("output_file") or "")
+        return "" if chosen == DEFAULT_OUTPUT_NAME else chosen
+
     def _target(self) -> str:
         """Where to save: 'Output File' if it has been set, else beside the chosen file, else nowhere."""
-        chosen = str(self.get_parameter_value("output_file") or "")
-        if chosen and chosen != DEFAULT_OUTPUT_NAME:
+        chosen = self._chosen_output()
+        if chosen:
             return chosen
         path = self._file_path()
         return str(Path(File(path).resolve()).parent / edited_name(path)) if path else ""
@@ -485,7 +495,11 @@ class TimelineEditor(SuccessFailureNode):
             return False
 
     def _destination(self, target: str) -> Any:
-        """A connected FileOutputSettings node if there is one, otherwise `target`, replacing any file already there."""
+        """Where to write. A relative name set in 'Output File' goes through the project's save situation, so
+        tests/blah.otio lands in the project's outputs folder and not in whatever folder the engine runs from. A
+        connected FileOutputSettings node is used as it is. Any other name, or none, replaces that file."""
+        if is_relative_name(self._chosen_output()):
+            return self._output_file.build_file()
         return connected_destination(self, "output_file") or ProjectFileDestination(target)
 
     @staticmethod
