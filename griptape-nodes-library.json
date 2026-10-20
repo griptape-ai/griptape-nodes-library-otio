@@ -92,5 +92,17 @@
                 "display_name": "OTIO to Fountain"
             }
         }
+    ],
+    "workflow_nodes": [
+        {
+            "node_type": "Script2OtioNode",
+            "workflow_path": "preconfigured_workflows/script_to_otio.py",
+            "metadata": {
+                "category": "Preconfigured",
+                "description": "Convert a Fountain script into an OpenTimelineIO (.otio) timeline.",
+                "display_name": "Script to OTIO",
+                "group": "create"
+            }
+        }
     ]
 }
