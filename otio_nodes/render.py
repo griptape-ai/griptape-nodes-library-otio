@@ -149,9 +149,12 @@ def build_args(
     has_audio: Callable[[Path], bool],
     settings: RenderSettings,
     output: Path,
+    graph_file: Path,
     captions: list[Caption] | None = None,
-) -> list[str]:
-    """The ffmpeg arguments that render `files` (from `clips_to_render`) to `output`."""
+) -> tuple[list[str], str]:
+    """The ffmpeg arguments that render `files` (from `clips_to_render`) to `output`, and the filter graph they read
+    from `graph_file`. The graph goes in a file because it grows with the clips and the subtitles, and on Windows a
+    command line cannot pass 32,767 characters. The caller writes the returned graph to `graph_file`."""
     rate = float(model["rate"])
     total = _seconds(total_frames(model), rate)
     width, height = settings.width, settings.height
@@ -183,12 +186,12 @@ def build_args(
             )
     for number, (first, last, picture) in enumerate(captions or []):
         index = len(files) + number
-        args += ["-loop", "1", "-framerate", f"{rate:g}", "-t", total, "-i", str(picture)]
+        # The picture lasts as long as its line and is moved to where the line starts, like a clip, so it costs
+        # nothing outside that time.
+        args += ["-loop", "1", "-framerate", f"{rate:g}", "-t", _seconds(last - first, rate), "-i", str(picture)]
         layers += 1
-        graph.append(
-            f"[v{layers - 1}][{index}:v]overlay=enable='between(t,{_seconds(first, rate)},{_seconds(last, rate)})'"
-            f":format=auto:shortest=0[v{layers}]"
-        )
+        graph.append(f"[{index}:v]format=rgba,setpts=PTS-STARTPTS+{_seconds(first, rate)}/TB[t{number}]")
+        graph.append(f"[v{layers - 1}][t{number}]overlay=eof_action=pass:format=auto[v{layers}]")
     graph.extend(sounds)
     if sounds:
         mixed = "".join(f"[s{i}]" for i in range(len(sounds)))
@@ -199,9 +202,9 @@ def build_args(
     else:
         graph.append(f"anullsrc=r={AUDIO_RATE}:cl=stereo,atrim=duration={total}[a]")
     graph.append(f"[v{layers}]format=yuv420p[v]")
-    return [
+    command = [
         *args,
-        "-filter_complex", ";".join(graph),
+        "-/filter_complex", str(graph_file),
         "-map", "[v]", "-map", "[a]",
         "-c:v", "libx264", "-preset", "medium", "-crf", str(settings.crf),
         "-c:a", "aac", "-b:a", "192k",
@@ -209,6 +212,7 @@ def build_args(
         "-movflags", "+faststart",
         str(output),
     ]  # fmt: skip
+    return command, ";".join(graph)
 
 
 def ffprobe_has_audio(path: Path) -> bool:
@@ -284,6 +288,9 @@ def render_movie(
         raise ValueError(msg)
     files = clips_to_render(model, resolve, settings)
     with tempfile.TemporaryDirectory() as folder:
-        args = build_args(model, files, has_audio, settings, output, make_captions(model, settings, Path(folder)))
+        graph_file = Path(folder) / "graph.txt"
+        captions = make_captions(model, settings, Path(folder))
+        args, graph = build_args(model, files, has_audio, settings, output, graph_file, captions)
+        graph_file.write_text(graph, encoding="utf-8")
         run_ffmpeg(args, on_progress, frames / float(model["rate"]))
     return len(files)

@@ -62,15 +62,58 @@ def test_with_no_sound_the_movie_still_gets_a_silent_track(tmp_path: Path):
     real = tmp_path / "a.mp4"
     real.write_bytes(b"x")
     model = timeline(video=[clip("a", 0, 24, media(real))])
-    args = build_args(
+    args, graph = build_args(
         model,
         clips_to_render(model, url_to_path, RenderSettings()),
         lambda _: False,
         RenderSettings(),
         tmp_path / "o.mp4",
+        tmp_path / "graph.txt",
     )
-    graph = args[args.index("-filter_complex") + 1]
     assert "anullsrc" in graph and "amix" not in graph
+    assert "-filter_complex" not in args and args[args.index("-/filter_complex") + 1] == str(tmp_path / "graph.txt")
+
+
+def test_the_command_line_does_not_grow_with_the_filter_graph(tmp_path: Path):
+    from otio_nodes.render import make_captions
+
+    real = tmp_path / "a.mp4"
+    real.write_bytes(b"x")
+    model = timeline(
+        video=[clip(f"s{i}", i * 24, 24, media(real)) for i in range(60)],
+        audio=[dialogue(f"l{i}", i * 24, 24, "A line of dialogue that is spoken.") for i in range(60)],
+    )
+    settings = RenderSettings(width=320, height=180)
+    args, graph = build_args(
+        model,
+        clips_to_render(model, url_to_path, settings),
+        lambda _: True,
+        settings,
+        tmp_path / "o.mp4",
+        tmp_path / "graph.txt",
+        make_captions(model, settings, tmp_path),
+    )
+    assert len(graph) > 20000, "the graph is large"
+    assert all(len(a) < 300 for a in args), "and none of it is on the command line"
+
+
+def test_a_subtitle_lasts_as_long_as_its_line_and_is_placed_where_it_starts(tmp_path: Path):
+    from otio_nodes.render import make_captions
+
+    model = timeline(video=[clip("shot", 0, 96)], audio=[dialogue("line", 48, 24, "Hello")])
+    settings = RenderSettings(width=320, height=180)
+    args, graph = build_args(
+        model,
+        [],
+        lambda _: False,
+        settings,
+        tmp_path / "o.mp4",
+        tmp_path / "graph.txt",
+        make_captions(model, settings, tmp_path),
+    )
+    at = args.index("-loop")
+    assert args[at + 4 : at + 6] == ["-t", "1.000000"], "one second, not the whole timeline"
+    assert "setpts=PTS-STARTPTS+2.000000/TB" in graph and "enable=" not in graph
 
 
 def _tools() -> tuple[str, str] | None:
