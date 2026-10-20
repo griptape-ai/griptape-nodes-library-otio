@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from otio_nodes.media import SILENCE_KEY, FfmpegEncoder
+from otio_nodes.media import SILENCE_KEY
 from otio_nodes.model import total_frames
 
 AUDIO_RATE = 48000
@@ -150,13 +150,37 @@ def ffprobe_has_audio(path: Path) -> bool:
     return result.returncode == 0 and "audio" in result.stdout
 
 
+def ffmpeg_path() -> str:
+    try:
+        from static_ffmpeg import run  # type: ignore[import-untyped]
+
+        return str(run.get_or_fetch_platform_executables_else_raise()[0])
+    except Exception as e:
+        msg = f"ffmpeg is not available, so the movie cannot be rendered: {e}"
+        raise ValueError(msg) from e
+
+
+def run_ffmpeg(args: list[str], on_progress: Callable[[float], None] | None, seconds: float) -> None:
+    """Run ffmpeg with `args`, reporting the fraction done (0 to 1) as it works."""
+    command = [ffmpeg_path(), "-y", "-loglevel", "error", "-nostats", "-progress", "pipe:1", *args]
+    with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:  # noqa: S603
+        assert process.stdout is not None  # noqa: S101
+        for line in process.stdout:
+            key, _, value = line.strip().partition("=")
+            if on_progress and seconds and key == "out_time_us" and value.lstrip("-").isdigit():
+                on_progress(min(1.0, max(0.0, int(value) / 1_000_000 / seconds)))
+        error = process.stderr.read() if process.stderr else ""
+    if process.returncode != 0:
+        msg = f"ffmpeg failed: {error.strip() or 'no error text'}"
+        raise ValueError(msg)
+
+
 def render_movie(
     model: dict[str, Any],
     resolve: Callable[[str], Path],
     output: Path,
     settings: RenderSettings | None = None,
     *,
-    encoder: FfmpegEncoder | None = None,
     has_audio: Callable[[Path], bool] = ffprobe_has_audio,
     on_progress: Callable[[float], None] | None = None,
 ) -> int:
@@ -171,5 +195,5 @@ def render_movie(
         raise ValueError(msg)
     files = clips_to_render(model, resolve, settings)
     args = build_args(model, files, has_audio, settings, output)
-    (encoder or FfmpegEncoder()).render(args, on_progress, frames / float(model["rate"]))
+    run_ffmpeg(args, on_progress, frames / float(model["rate"]))
     return len(files)

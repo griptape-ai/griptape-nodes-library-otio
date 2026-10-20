@@ -1141,3 +1141,32 @@ def test_otio_to_movie_needs_a_timeline_and_renders_one(tmp_path: Path, monkeypa
     assert (tmp_path / "timeline.mp4").read_bytes() == b"movie"
     assert seen["settings"].width == 640 and seen["settings"].height == 360
     assert str(tmp_path / "timeline.mp4") in str(node.parameter_output_values["video"].value)
+
+
+def test_otio_to_movie_can_read_an_otio_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    from otio_nodes import otio_to_movie
+    from otio_nodes.otio_to_movie import OTIOToMovie
+
+    path = tmp_path / "in.otio"
+    path.write_text(to_json(built()), encoding="utf-8")
+    node = OTIOToMovie(name="movie")
+    node.set_parameter_value("source", "file")
+    assert node.validate_before_node_run(), "a file source with no file is a problem"
+    node.set_parameter_value("otio_file", str(path))
+    assert not node.validate_before_node_run()
+
+    seen = {}
+
+    def fake_render(model, resolve, output, settings):
+        seen["model"] = model
+        output.write_bytes(b"movie")
+        return 1
+
+    monkeypatch.setattr(otio_to_movie, "render_movie", fake_render)
+    monkeypatch.setattr(
+        node._output_file,
+        "build_file",
+        lambda: SimpleNamespace(write_bytes=lambda _: SimpleNamespace(resolve=lambda: str(tmp_path / "o.mp4"))),
+    )
+    run(node)
+    assert seen["model"]["tracks"], "the timeline came from the file"

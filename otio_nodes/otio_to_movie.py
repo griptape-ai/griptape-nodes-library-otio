@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from griptape.artifacts import VideoUrlArtifact
-from griptape_nodes.exe_types.core_types import NodeError, ParameterGroup, ParameterMode
+from griptape_nodes.exe_types.core_types import NodeError, Parameter, ParameterGroup, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 from griptape_nodes.exe_types.param_components.project_file_parameter import ProjectFileParameter
 from griptape_nodes.exe_types.param_types.parameter_bool import ParameterBool
@@ -15,6 +15,8 @@ from griptape_nodes.exe_types.param_types.parameter_int import ParameterInt
 from griptape_nodes.exe_types.param_types.parameter_string import ParameterString
 from griptape_nodes.exe_types.param_types.parameter_video import ParameterVideo
 from griptape_nodes.files.file import File
+from griptape_nodes.traits.file_system_picker import FileSystemPicker
+from griptape_nodes.traits.options import Options
 
 from otio_nodes.media import url_to_path
 from otio_nodes.otio_io import from_json
@@ -24,6 +26,8 @@ from otio_nodes.render import DEFAULT_CRF, DEFAULT_SIZE, RenderSettings, render_
 __all__ = ["OTIOToMovie"]
 
 DEFAULT_OUTPUT_NAME = "timeline.mp4"
+SOURCE_TEXT = "text"
+SOURCE_FILE = "file"
 
 
 def resolve_media(url: str) -> Path:
@@ -32,7 +36,7 @@ def resolve_media(url: str) -> Path:
 
 
 class OTIOToMovie(SuccessFailureNode):
-    """Render a timeline to an H.264 movie with sound.
+    """Render a timeline to an H.264 movie with sound. The timeline comes from connected OTIO text or an .otio file.
 
     Clips on the video tracks are laid at their place on a black background, and every clip with sound is mixed in at
     full level. Placeholder slates render as title cards, so a timeline with no footage becomes an animatic. Gaps are
@@ -43,12 +47,33 @@ class OTIOToMovie(SuccessFailureNode):
         super().__init__(**kwargs)
         self.add_parameter(
             ParameterString(
+                name="source",
+                default_value=SOURCE_TEXT,
+                tooltip="Where the timeline comes from: OTIO text connected to 'OTIO', or an .otio file.",
+                placeholder_text="Choose text or file",
+                allowed_modes={ParameterMode.PROPERTY},
+                traits={Options(choices=[SOURCE_TEXT, SOURCE_FILE])},
+            )
+        )
+        self.add_parameter(
+            ParameterString(
                 name="otio",
                 tooltip="The timeline as OpenTimelineIO text, for example from Script to Timeline, Load OTIO or Timeline Editor.",
                 placeholder_text="Connect OTIO text",
                 multiline=True,
                 allowed_modes={ParameterMode.INPUT},
                 hide_property=True,
+            )
+        )
+        self.add_parameter(
+            ParameterString(
+                name="otio_file",
+                tooltip="The .otio file to render. Project macros such as {outputs} work.",
+                placeholder_text="Choose an .otio file",
+                allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
+                traits={FileSystemPicker(allow_files=True, allow_directories=False, file_extensions=[".otio"])},
+                allow_variable_substitution=False,
+                hide=True,
             )
         )
         with ParameterGroup(name="render_settings", ui_options={"display_name": "Render Settings"}) as settings_group:
@@ -100,15 +125,51 @@ class OTIOToMovie(SuccessFailureNode):
             result_details_placeholder="Render status will appear here.",
         )
 
+    def after_value_set(self, parameter: Parameter, value: Any) -> None:
+        if parameter.name == "source":
+            if value == SOURCE_FILE:
+                self.show_parameter_by_name("otio_file")
+                self.hide_parameter_by_name("otio")
+            else:
+                self.show_parameter_by_name("otio")
+                self.hide_parameter_by_name("otio_file")
+        super().after_value_set(parameter, value)
+
+    def _uses_file(self) -> bool:
+        return self.get_parameter_value("source") == SOURCE_FILE
+
+    def _file_path(self) -> str:
+        return str(self.get_parameter_value("otio_file") or "").strip()
+
     def validate_before_node_run(self) -> list[Exception] | None:
         exceptions = list(super().validate_before_node_run() or [])
-        if not str(self.get_parameter_value("otio") or "").strip():
+        if self._uses_file():
+            missing = not self._file_path()
+        else:
+            missing = not str(self.get_parameter_value("otio") or "").strip()
+        if missing:
             exceptions.append(
                 NodeError(
-                    "There is no timeline to render. Connect 'OTIO' from Script to Timeline, Load OTIO or Timeline Editor."
+                    "There is no timeline to render. Choose a 'Source', then connect 'OTIO' or choose an .otio file."
                 )
             )
         return exceptions or None
+
+    def _timeline(self) -> dict[str, Any]:
+        if self._uses_file():
+            path = self._file_path()
+            try:
+                text = File(path).read_text()
+            except Exception as e:
+                msg = f"Could not read '{path}'. Choose an .otio file in 'OTIO File'."
+                raise NodeError(msg) from e
+        else:
+            text = str(self.get_parameter_value("otio") or "").strip()
+        try:
+            return from_json(text)
+        except Exception as e:
+            msg = f"The timeline is not readable OpenTimelineIO: {e}"
+            raise NodeError(msg) from e
 
     def process(self) -> AsyncResult[None]:
         self._clear_execution_status()
@@ -120,11 +181,7 @@ class OTIOToMovie(SuccessFailureNode):
             self._handle_failure_exception(e)
 
     def _render(self) -> None:
-        try:
-            timeline = from_json(str(self.get_parameter_value("otio")))
-        except Exception as e:
-            msg = f"The connected text is not a readable OpenTimelineIO timeline: {e}"
-            raise NodeError(msg) from e
+        timeline = self._timeline()
         settings = RenderSettings(
             width=int(self.get_parameter_value("width") or DEFAULT_SIZE[0]),
             height=int(self.get_parameter_value("height") or DEFAULT_SIZE[1]),
