@@ -1,14 +1,12 @@
 import copy
 from pathlib import Path
 
-import pytest
-
 from otio_nodes.breakdown import breakdown
 from otio_nodes.fountain import parse
 from otio_nodes.fountain_writer import write_fountain
 from otio_nodes.model import build_model
 
-SCRIPT = Path("/Volumes/griptape/jonh-and-his-dog/10_preproduction/script/jonhAndHisDog_script_v002.fountain")
+SCRIPT = Path(__file__).parent / "fixtures" / "sample_script.fountain"
 
 SAMPLE = """Title: Test Film
 Author: Someone
@@ -181,12 +179,11 @@ def test_a_timeline_with_no_shots_gives_only_the_title_page():
     )
 
 
-@pytest.mark.skipif(not SCRIPT.exists(), reason="project script not available")
-def test_the_real_script_comes_back_with_everything_that_was_said():
+def test_the_sample_script_comes_back_with_everything_that_was_said():
     original = parse(SCRIPT.read_text(encoding="utf-8"))
     back = parse(write_fountain(build_model(breakdown(original))))
     assert facts(back) == facts(original)
-    assert len([e for e in back["elements"] if e["type"] == "dialogue"]) == 34
+    assert len([e for e in back["elements"] if e["type"] == "dialogue"]) == 24
 
 
 def test_a_forced_character_name_is_written_back_with_its_at_sign():

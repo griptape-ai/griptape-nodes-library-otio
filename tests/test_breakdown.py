@@ -5,7 +5,7 @@ import pytest
 from otio_nodes.breakdown import BreakdownSettings, breakdown, dialogue_seconds, find_cue
 from otio_nodes.fountain import parse
 
-SCRIPT = Path("/Volumes/griptape/jonh-and-his-dog/10_preproduction/script/jonhAndHisDog_script_v002.fountain")
+SCRIPT = Path(__file__).parent / "fixtures" / "sample_script.fountain"
 
 
 def run(text: str, **settings) -> dict:
@@ -86,16 +86,15 @@ def test_settings_round_trip_ignores_unknown_keys():
     assert BreakdownSettings.from_dict(settings.to_dict()) == settings
 
 
-@pytest.mark.skipif(not SCRIPT.exists(), reason="project script not available")
-def test_real_script_v002_sequences_and_shots():
+def test_sample_script_sequences_and_shots():
     result = breakdown(parse(SCRIPT.read_text(encoding="utf-8")))
     shots = result["shots"]
-    assert max(s["sequence"] for s in shots) == 8
+    assert max(s["sequence"] for s in shots) == 6
     cues = [s["cue"] for s in shots]
-    assert cues.count("WIDE SHOT") >= 5
+    assert cues.count("WIDE SHOT") >= 3
     assert "EXTREME WIDE SHOT" in cues
     assert all(s["seconds"] > 0 for s in shots)
-    assert sum(len(s["dialogue"]) for s in shots) == 34
+    assert sum(len(s["dialogue"]) for s in shots) == 24
 
 
 def test_a_note_in_its_own_paragraph_reaches_the_next_shot():

@@ -362,8 +362,8 @@ test('the slate text is the name, the sequence and heading, and the description'
   const m = model();
   const c = findClip(m, 'shot-001').clip;
   c.name = '001 Shot';
-  c.description = 'JONH jumps out of bed.';
-  assert.deepEqual(slateText(c), { title: '001 Shot', subtitle: 'SQ01  INT. ROOM - DAY', body: 'JONH jumps out of bed.' });
+  c.description = 'MARA jumps out of bed.';
+  assert.deepEqual(slateText(c), { title: '001 Shot', subtitle: 'SQ01  INT. ROOM - DAY', body: 'MARA jumps out of bed.' });
   c.meta.sequence = null;
   assert.equal(slateText(c).subtitle, 'INT. ROOM - DAY');
 });
