@@ -2,7 +2,7 @@
 // per small slice of time. A clip draws the part of those peaks that it shows, so trimming and zooming never decode
 // again. A file that cannot be fetched or decoded gets no waveform.
 
-const PEAKS_PER_SECOND = 200;
+const PEAKS_PER_SECOND = 200; // the aim. The real rate depends on the file's sample rate and is stored with the peaks
 const MAX_CANVAS_WIDTH = 8192;
 const CURVE = 0.6; // below 1 lifts the quiet parts so speech between loud peaks stays visible
 const WAVE_COLOR = 'rgba(0,0,0,.55)';
@@ -31,7 +31,7 @@ export function createWaveforms(onReady) {
       // Scale so the loudest slice fills the clip. A quiet file would otherwise draw as a thin line.
       const loudest = peaks.reduce((max, value) => Math.max(max, value), 0);
       if (loudest > 0) for (let i = 0; i < peaks.length; i++) peaks[i] = Math.pow(peaks[i] / loudest, CURVE);
-      cache.set(url, { peaks });
+      cache.set(url, { peaks, rate: buffer.sampleRate / slice });
     } catch {
       cache.set(url, null);
     }
@@ -51,10 +51,10 @@ export function createWaveforms(onReady) {
     const context = canvas.getContext('2d');
     context.fillStyle = WAVE_COLOR;
     const mid = height / 2;
-    const { peaks } = found;
+    const { peaks, rate } = found;
     for (let x = 0; x < canvas.width; x++) {
-      const from = Math.floor((offset + (x / canvas.width) * seconds) * PEAKS_PER_SECOND);
-      const to = Math.max(from + 1, Math.floor((offset + ((x + 1) / canvas.width) * seconds) * PEAKS_PER_SECOND));
+      const from = Math.floor((offset + (x / canvas.width) * seconds) * rate);
+      const to = Math.max(from + 1, Math.floor((offset + ((x + 1) / canvas.width) * seconds) * rate));
       let peak = 0;
       for (let i = from; i < to && i < peaks.length; i++) if (peaks[i] > peak) peak = peaks[i];
       const half = Math.max(peak > 0 ? 1 : 0, peak * mid);

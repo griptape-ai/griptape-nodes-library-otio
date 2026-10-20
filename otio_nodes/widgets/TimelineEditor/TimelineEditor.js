@@ -30,7 +30,7 @@ import {
   totalFrames,
   trimClip,
   updateClip,
-} from './_ops.js?v=85c6ea2c';
+} from './_ops.js?v=679bba3e';
 import {
   BAND_HEIGHT,
   EDGE_PX,
@@ -42,15 +42,15 @@ import {
   SHOT_LANE_HEIGHT,
   SNAP_PX,
   ensureStyles,
-} from './_styles.js?v=85c6ea2c';
-import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=85c6ea2c';
-import { el, readableOn } from './_dom.js?v=85c6ea2c';
-import { createViewer } from './_viewer.js?v=85c6ea2c';
-import { createAudio } from './_audio.js?v=85c6ea2c';
-import { createWaveforms } from './_waveform.js?v=85c6ea2c';
-import { FOLDER_PATH, icon } from './_icons.js?v=85c6ea2c';
-import { createTooltip } from './_tooltip.js?v=85c6ea2c';
-import { classifyIncoming, heldEntry, takePreviews } from './_echo.js?v=85c6ea2c';
+} from './_styles.js?v=679bba3e';
+import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=679bba3e';
+import { el, readableOn } from './_dom.js?v=679bba3e';
+import { createViewer } from './_viewer.js?v=679bba3e';
+import { createAudio } from './_audio.js?v=679bba3e';
+import { createWaveforms } from './_waveform.js?v=679bba3e';
+import { FOLDER_PATH, icon } from './_icons.js?v=679bba3e';
+import { createTooltip } from './_tooltip.js?v=679bba3e';
+import { classifyIncoming, heldEntry, takePreviews } from './_echo.js?v=679bba3e';
 
 const WIDGET_VERSION = '0.2.0';
 const sameModel = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -1126,10 +1126,11 @@ export default function TimelineEditor(container, props) {
     }
     if (kind === 'previews' || kind === 'stalePreviews') {
       // The node is reporting how far it has got with viewer copies of linked files. That changes nothing the user
-      // edits, so only the preview information is taken and nothing is redrawn but the viewer.
+      // edits, so only the preview information is taken. The viewer and the timeline are redrawn, because an audio clip
+      // may now have a file to draw a waveform from.
       takePreviews(state.model, incoming);
       updateViewer();
-      if (!state.drag) renderTimeline(); // an audio clip may now have a file to draw a waveform from
+      if (!state.drag) renderTimeline();
       return;
     }
     if (!state.model || !sameModel(incoming, state.model)) {
