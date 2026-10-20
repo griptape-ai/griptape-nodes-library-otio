@@ -30,7 +30,7 @@ import {
   totalFrames,
   trimClip,
   updateClip,
-} from './_ops.js?v=4ca09e07';
+} from './_ops.js?v=fb8a0541';
 import {
   BAND_HEIGHT,
   EDGE_PX,
@@ -42,15 +42,15 @@ import {
   SHOT_LANE_HEIGHT,
   SNAP_PX,
   ensureStyles,
-} from './_styles.js?v=4ca09e07';
-import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=4ca09e07';
-import { el, readableOn } from './_dom.js?v=4ca09e07';
-import { createViewer } from './_viewer.js?v=4ca09e07';
-import { createAudio } from './_audio.js?v=4ca09e07';
-import { createWaveforms } from './_waveform.js?v=4ca09e07';
-import { FOLDER_PATH, icon } from './_icons.js?v=4ca09e07';
-import { createTooltip } from './_tooltip.js?v=4ca09e07';
-import { classifyIncoming, heldEntry, takePreviews } from './_echo.js?v=4ca09e07';
+} from './_styles.js?v=fb8a0541';
+import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=fb8a0541';
+import { el, readableOn } from './_dom.js?v=fb8a0541';
+import { createViewer } from './_viewer.js?v=fb8a0541';
+import { createAudio } from './_audio.js?v=fb8a0541';
+import { createWaveforms } from './_waveform.js?v=fb8a0541';
+import { FOLDER_PATH, icon } from './_icons.js?v=fb8a0541';
+import { createTooltip } from './_tooltip.js?v=fb8a0541';
+import { classifyIncoming, heldEntry, takePreviews } from './_echo.js?v=fb8a0541';
 
 const WIDGET_VERSION = '0.2.0';
 const sameModel = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -929,7 +929,6 @@ export default function TimelineEditor(container, props) {
       renderDetails();
     }
     if (disabled) {
-      seek(clip.start);
       renderTimeline();
       return;
     }
@@ -989,10 +988,7 @@ export default function TimelineEditor(container, props) {
     if (drag && drag.moved && state.preview) commit(state.preview);
     else {
       state.preview = null;
-      // A click that did not drag puts the playhead at the start of the clip, so the viewer shows it.
-      const clicked = drag && drag.id ? findClip(state.model, drag.id) : null;
-      if (clicked) seek(clicked.clip.start);
-      renderAll();
+      renderAll(); // a click only selects. The playhead stays where it is, so a split lands where it was put
     }
   }
 
