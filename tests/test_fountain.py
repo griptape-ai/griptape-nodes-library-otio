@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import pytest
-
 from otio_nodes.fountain import parse
 
 SAMPLE = """Title: Test Film
@@ -155,26 +153,25 @@ def test_crlf_input():
     assert [e["type"] for e in result["elements"]] == ["scene_heading", "action"]
 
 
-SCRIPT = Path("/Volumes/griptape/jonh-and-his-dog/10_preproduction/script/jonhAndHisDog_script_v002.fountain")
+SCRIPT = Path(__file__).parent / "fixtures" / "sample_script.fountain"
 
 
-@pytest.mark.skipif(not SCRIPT.exists(), reason="project script not available")
-def test_real_script_v002():
+def test_sample_script():
     result = parse(SCRIPT.read_text(encoding="utf-8"))
-    assert result["title_page"]["Title"] == "Jonh and His Dog"
+    assert result["title_page"]["Title"] == "The Lighthouse Robot"
     headings = [s["heading"] for s in result["scenes"]]
-    assert headings[0] == "INT. JONH'S BEDROOM - DAY"
-    assert len(headings) == 9
-    voices = [e for e in result["elements"] if e["type"] == "dialogue" and e["character"] == "FINN"]
+    assert headings[0] == "INT. LIGHTHOUSE KEEPER'S ROOM - DAY"
+    assert len(headings) == 7
+    voices = [e for e in result["elements"] if e["type"] == "dialogue" and e["character"] == "NARRATOR"]
     assert voices and all(v["extension"] == "V.O." for v in voices)
     assert {e["character"] for e in result["elements"] if e["type"] == "dialogue"} == {
-        "FINN",
-        "JONH",
-        "DOG",
-        "MOM",
-        "DAD",
+        "NARRATOR",
+        "MARA",
+        "ROBOT",
+        "OLD SAILOR",
     }
-    assert sum(1 for e in result["elements"] if e["type"] == "transition") == 6
+    assert sum(1 for e in result["elements"] if e["type"] == "transition") == 4
+    assert [n["text"] for n in result["notes"]] == ["Check the weather in this scene."]
 
 
 def test_a_note_on_its_own_line_does_not_split_the_block():

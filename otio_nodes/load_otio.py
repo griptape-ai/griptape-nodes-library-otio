@@ -1,4 +1,4 @@
-"""Read an OpenTimelineIO (.otio) file into an editable timeline."""
+"""Load an OpenTimelineIO (.otio) file into an editable timeline."""
 
 from __future__ import annotations
 
@@ -13,11 +13,11 @@ from griptape_nodes.traits.file_system_picker import FileSystemPicker
 from otio_nodes.node_helpers import timeline_summary
 from otio_nodes.otio_io import from_json, to_json
 
-__all__ = ["ReadOTIO"]
+__all__ = ["LoadOTIO"]
 
 
-class ReadOTIO(SuccessFailureNode):
-    """Read an .otio file. Files written by Write OTIO come back exactly as they were saved.
+class LoadOTIO(SuccessFailureNode):
+    """Load an .otio file. Files written by Save OTIO come back exactly as they were saved.
 
     Files from other tools load too. Clips keep their names and positions. Transitions, nested stacks and clip-level
     markers are dropped, and the summary lists what was dropped.
@@ -56,8 +56,8 @@ class ReadOTIO(SuccessFailureNode):
             )
         )
         self._create_status_parameters(
-            result_details_tooltip="Details about the read result or any errors",
-            result_details_placeholder="Read status will appear here.",
+            result_details_tooltip="Details about the load result or any errors",
+            result_details_placeholder="Load status will appear here.",
         )
 
     def validate_before_node_run(self) -> list[Exception] | None:
@@ -69,14 +69,14 @@ class ReadOTIO(SuccessFailureNode):
     def process(self) -> AsyncResult[None]:
         self._clear_execution_status()
         try:
-            yield lambda: self._read()
+            yield lambda: self._load()
         except Exception as e:
             self.parameter_output_values["otio"] = ""
             self.parameter_output_values["summary"] = ""
-            self._set_status_results(was_successful=False, result_details=f"Read failed: {e}")
+            self._set_status_results(was_successful=False, result_details=f"Load failed: {e}")
             self._handle_failure_exception(e)
 
-    def _read(self) -> None:
+    def _load(self) -> None:
         path = self.get_parameter_value("otio_file").strip()
         try:
             text = File(path).read_text()
@@ -90,4 +90,4 @@ class ReadOTIO(SuccessFailureNode):
             raise NodeError(msg) from e
         self.parameter_output_values["otio"] = to_json(model)
         self.parameter_output_values["summary"] = timeline_summary(model)
-        self._set_status_results(was_successful=True, result_details=f"Read {path}")
+        self._set_status_results(was_successful=True, result_details=f"Loaded {path}")

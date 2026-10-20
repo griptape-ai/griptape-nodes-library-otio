@@ -19,11 +19,11 @@ OPS = (ROOT / "otio_nodes" / "widgets" / "TimelineEditor" / "_ops.js").as_uri()
 
 SAMPLE = """Title: Test
 
-INT. JONH'S BEDROOM - DAY
+INT. MARA'S BEDROOM - DAY
 
-JONH jumps out of bed, stretching and yawning.
+MARA jumps out of bed, stretching and yawning.
 
-JONH
+MARA
 "Speak!"
 
 CLOSE UP of the dog. It wags: “quote marks”, accents é, and a tab.

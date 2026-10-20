@@ -6,11 +6,11 @@ from griptape_nodes.exe_types.core_types import NodeError
 
 from otio_nodes.fountain import parse
 from otio_nodes.load_fountain_script import LoadFountainScript
+from otio_nodes.load_otio import LoadOTIO
 from otio_nodes.otio_io import from_json, to_json
 from otio_nodes.otio_to_fountain import OTIOToFountain
-from otio_nodes.read_otio import ReadOTIO
+from otio_nodes.save_otio import SaveOTIO
 from otio_nodes.script_to_timeline import ScriptToTimeline
-from otio_nodes.write_otio import WriteOTIO
 
 TEXT = """Title: Test Film
 
@@ -183,8 +183,8 @@ def test_data_parameters_hide_their_data_and_text_outputs_are_not_saved():
         (ScriptToTimeline(name="b"), "script"),
         (OTIOToFountain(name="k"), "otio"),
         (ScriptToTimeline(name="c"), "otio"),
-        (WriteOTIO(name="d"), "otio"),
-        (ReadOTIO(name="e"), "otio"),
+        (SaveOTIO(name="d"), "otio"),
+        (LoadOTIO(name="e"), "otio"),
         (TimelineEditor(name="f"), "otio"),
         (TimelineEditor(name="g"), "edited_otio"),
     ]
@@ -197,7 +197,7 @@ def test_data_parameters_hide_their_data_and_text_outputs_are_not_saved():
     # left out of the saved workflow.
     for node, name in (
         (ScriptToTimeline(name="h"), "otio"),
-        (ReadOTIO(name="i"), "otio"),
+        (LoadOTIO(name="i"), "otio"),
         (TimelineEditor(name="j"), "edited_otio"),
     ):
         parameter = node.get_parameter_by_name(name)
@@ -218,8 +218,8 @@ def test_build_without_shots_fails():
         run(node)
 
 
-def test_write_otio_saves_into_the_folder(tmp_path: Path):
-    node = WriteOTIO(name="write")
+def test_save_otio_saves_into_the_folder(tmp_path: Path):
+    node = SaveOTIO(name="write")
     node.set_parameter_value("placeholder_media", False)
     node.set_parameter_value("directory", str(tmp_path / "out"))
     node.set_parameter_value("otio", to_json(built()))
@@ -231,8 +231,8 @@ def test_write_otio_saves_into_the_folder(tmp_path: Path):
     assert node.parameter_output_values["output_directory"] == str(tmp_path / "out")
 
 
-def test_write_otio_version_token_counts_up(tmp_path: Path):
-    node = WriteOTIO(name="write")
+def test_save_otio_version_token_counts_up(tmp_path: Path):
+    node = SaveOTIO(name="write")
     node.set_parameter_value("placeholder_media", False)
     node.set_parameter_value("directory", str(tmp_path / "timeline_v{###}"))
     node.set_parameter_value("otio", to_json(built()))
@@ -242,10 +242,10 @@ def test_write_otio_version_token_counts_up(tmp_path: Path):
     assert (tmp_path / "timeline_v002" / "timeline.otio").exists()
 
 
-def test_write_otio_validation_and_unreadable_text(tmp_path: Path):
-    node = WriteOTIO(name="write")
+def test_save_otio_validation_and_unreadable_text(tmp_path: Path):
+    node = SaveOTIO(name="write")
     errors = node.validate_before_node_run()
-    assert errors and "no timeline to write" in str(errors[0])
+    assert errors and "no timeline to save" in str(errors[0])
 
     node.set_parameter_value("placeholder_media", False)
     node.set_parameter_value("directory", str(tmp_path / "out"))
@@ -256,19 +256,19 @@ def test_write_otio_validation_and_unreadable_text(tmp_path: Path):
     assert not (tmp_path / "out").exists()
 
 
-def test_read_otio_round_trip(tmp_path: Path):
+def test_load_otio_round_trip(tmp_path: Path):
     timeline = built()
     path = tmp_path / "in.otio"
     path.write_text(to_json(timeline), encoding="utf-8")
-    node = ReadOTIO(name="read")
+    node = LoadOTIO(name="read")
     node.set_parameter_value("otio_file", str(path))
     run(node)
     assert from_json(node.parameter_output_values["otio"]) == timeline
     assert "Shots: 3" in node.parameter_output_values["summary"]
 
 
-def test_read_otio_failures(tmp_path: Path):
-    node = ReadOTIO(name="read")
+def test_load_otio_failures(tmp_path: Path):
+    node = LoadOTIO(name="read")
     errors = node.validate_before_node_run()
     assert errors and "no file to read" in str(errors[0])
 
@@ -546,8 +546,8 @@ def test_every_string_parameter_has_a_placeholder():
     for node in (
         LoadFountainScript(name="a"),
         ScriptToTimeline(name="b"),
-        WriteOTIO(name="c"),
-        ReadOTIO(name="d"),
+        SaveOTIO(name="c"),
+        LoadOTIO(name="d"),
         TimelineEditor(name="e"),
         OTIOToFountain(name="f"),
     ):

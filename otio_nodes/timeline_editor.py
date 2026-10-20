@@ -73,7 +73,7 @@ class TimelineEditor(SuccessFailureNode):
     """Edit an OpenTimelineIO timeline: move and trim clips, split, add SFX and audio clips, and play it back.
 
     Choose where the timeline comes from in 'Source': an .otio file, or OTIO text connected to 'OTIO' (from Script to
-    Timeline or Read OTIO). The timeline opens in the editor the first time. After that your edits belong to the node: they are kept when the workflow is saved,
+    Timeline or Load OTIO). The timeline opens in the editor the first time. After that your edits belong to the node: they are kept when the workflow is saved,
     reopened or run, and a new timeline arriving never replaces them. 'Reload' throws them away and opens the input
     again.
 
@@ -102,7 +102,7 @@ class TimelineEditor(SuccessFailureNode):
         self.add_parameter(
             ParameterString(
                 name="otio",
-                tooltip="The timeline as OpenTimelineIO text, for example from Script to Timeline or Read OTIO.",
+                tooltip="The timeline as OpenTimelineIO text, for example from Script to Timeline or Load OTIO.",
                 placeholder_text="Connect OTIO text",
                 multiline=True,
                 allowed_modes={ParameterMode.INPUT},

@@ -30,7 +30,7 @@ EXT. YARD - NIGHT
 JILL (V.O.)
 Hi.
 """
-SCRIPT = Path("/Volumes/griptape/jonh-and-his-dog/10_preproduction/script/jonhAndHisDog_script_v002.fountain")
+SCRIPT = Path(__file__).parent / "fixtures" / "sample_script.fountain"
 
 
 def make_model(text: str = TEXT) -> dict:
@@ -198,11 +198,10 @@ def test_invalid_model_is_rejected_before_writing():
         to_json(model)
 
 
-@pytest.mark.skipif(not SCRIPT.exists(), reason="project script not available")
-def test_real_script_round_trips_and_has_a_sensible_length():
+def test_sample_script_round_trips_and_has_a_sensible_length():
     model = make_model(SCRIPT.read_text(encoding="utf-8"))
     seconds = total_frames(model) / model["rate"]
-    assert 60 < seconds < 400
+    assert 30 < seconds < 400
     assert from_json(to_json(model)) == model
 
 

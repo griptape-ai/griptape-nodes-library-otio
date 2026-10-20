@@ -1,4 +1,4 @@
-"""Write a timeline as an OpenTimelineIO (.otio) file."""
+"""Save a timeline as an OpenTimelineIO (.otio) file."""
 
 from __future__ import annotations
 
@@ -13,10 +13,10 @@ from otio_nodes.node_params import create_output_parameters, on_output_value_set
 from otio_nodes.otio_io import from_json
 from otio_nodes.output_directory import OutputDirectory, to_project_path
 
-__all__ = ["WriteOTIO"]
+__all__ = ["SaveOTIO"]
 
 
-class WriteOTIO(SuccessFailureNode):
+class SaveOTIO(SuccessFailureNode):
     """Save a timeline as an .otio file that Resolve, Hiero and other editors can open.
 
     Script to Timeline can save the file itself. Use this node to save again after the timeline has been edited.
@@ -31,7 +31,7 @@ class WriteOTIO(SuccessFailureNode):
         self.add_parameter(
             ParameterString(
                 name="otio",
-                tooltip="The timeline as OpenTimelineIO text, for example from Script to Timeline or Read OTIO.",
+                tooltip="The timeline as OpenTimelineIO text, for example from Script to Timeline or Load OTIO.",
                 placeholder_text="Connect OTIO text",
                 multiline=True,
                 allowed_modes={ParameterMode.INPUT},
@@ -58,8 +58,8 @@ class WriteOTIO(SuccessFailureNode):
             )
         )
         self._create_status_parameters(
-            result_details_tooltip="Details about the write result or any errors",
-            result_details_placeholder="Write status will appear here.",
+            result_details_tooltip="Details about the save result or any errors",
+            result_details_placeholder="Save status will appear here.",
         )
 
     def after_value_set(self, parameter: Parameter, value: Any) -> None:
@@ -72,7 +72,7 @@ class WriteOTIO(SuccessFailureNode):
         if not str(self.get_parameter_value("otio") or "").strip():
             exceptions.append(
                 NodeError(
-                    "There is no timeline to write. Connect 'OTIO' from Script to Timeline, Read OTIO or Timeline Editor."
+                    "There is no timeline to save. Connect 'OTIO' from Script to Timeline, Load OTIO or Timeline Editor."
                 )
             )
         return exceptions or None
@@ -80,14 +80,14 @@ class WriteOTIO(SuccessFailureNode):
     def process(self) -> AsyncResult[None]:
         self._clear_execution_status()
         try:
-            yield lambda: self._write()
+            yield lambda: self._save()
         except Exception as e:
             self.parameter_output_values["otio_path"] = ""
             self.parameter_output_values["output_directory"] = ""
-            self._set_status_results(was_successful=False, result_details=f"Write failed: {e}")
+            self._set_status_results(was_successful=False, result_details=f"Save failed: {e}")
             self._handle_failure_exception(e)
 
-    def _write(self) -> None:
+    def _save(self) -> None:
         try:
             timeline = from_json(str(self.get_parameter_value("otio")))
         except Exception as e:

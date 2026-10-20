@@ -195,7 +195,7 @@ def test_real_ffmpeg_makes_a_slate_and_silence_of_the_right_length(tmp_path):
     encoder = FfmpegEncoder()
     slate = tmp_path / "slate.mov"
     encoder.slate(
-        {"title": "001 Wide Shot", "subtitle": "SQ01  INT. ROOM - DAY", "body": "Jonh jumps out of bed."},
+        {"title": "001 Wide Shot", "subtitle": "SQ01  INT. ROOM - DAY", "body": "Mara jumps out of bed."},
         slate,
         48,
         24.0,
