@@ -135,3 +135,55 @@ def test_real_render_puts_picture_and_sound_at_their_places(tmp_path: Path):
 
     assert loudness(0.1, 1.5) < -60, "silent before the tone"
     assert loudness(2.1, 0.8) > -30, "the tone is heard from 2 s"
+
+
+def dialogue(name, start, duration, text, character="JACK"):
+    return {
+        **clip(name, start, duration),
+        "description": text,
+        "meta": {"kind": "dialogue", "character": character, "extension": ""},
+    }
+
+
+def test_overlapping_lines_share_a_caption_and_gaps_have_none():
+    from otio_nodes.render import caption_segments
+
+    model = timeline(
+        audio=[dialogue("a", 0, 48, "Hello"), dialogue("b", 24, 48, "Hi", "JILL"), dialogue("c", 96, 24, "Bye")]
+    )
+    assert [(first, last, [who for who, _ in lines]) for first, last, lines in caption_segments(model)] == [
+        (0, 24, ["JACK"]),
+        (24, 48, ["JACK", "JILL"]),
+        (48, 72, ["JILL"]),
+        (96, 120, ["JACK"]),
+    ]
+
+
+@pytest.mark.skipif(_tools() is None, reason="ffmpeg is not available")
+def test_real_render_draws_spoken_lines_only_while_they_are_spoken(tmp_path: Path):
+    tools = _tools()
+    assert tools
+    ffmpeg, _ = tools
+    black = tmp_path / "black.mp4"
+    FfmpegEncoder()._run(["-f", "lavfi", "-i", "color=c=black:s=320x180:r=24:d=3", "-pix_fmt", "yuv420p", str(black)])
+    model = timeline(
+        video=[clip("shot", 0, 72, media(black))],
+        audio=[dialogue("line", 24, 24, "This is the line being spoken in the film.")],
+    )
+
+    def lit(movie: Path, second: float) -> int:
+        raw = subprocess.run(
+            [ffmpeg, "-v", "error", "-ss", str(second), "-i", str(movie), "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-"],
+            capture_output=True, check=True,
+        ).stdout  # fmt: skip
+        return sum(1 for value in raw if value > 100)
+
+    shown = tmp_path / "shown.mp4"
+    render_movie(model, url_to_path, shown, RenderSettings(width=320, height=180, crf=28))
+    assert lit(shown, 0.5) == 0, "no subtitle before the line"
+    assert lit(shown, 1.5) > 50, "subtitle while the line is spoken"
+    assert lit(shown, 2.5) == 0, "no subtitle after the line"
+
+    hidden = tmp_path / "hidden.mp4"
+    render_movie(model, url_to_path, hidden, RenderSettings(width=320, height=180, crf=28, show_dialogue=False))
+    assert lit(hidden, 1.5) == 0

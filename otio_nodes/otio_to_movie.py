@@ -39,7 +39,7 @@ class OTIOToMovie(SuccessFailureNode):
     """Render a timeline to an H.264 movie with sound. The timeline comes from connected OTIO text or an .otio file.
 
     Clips on the video tracks are laid at their place on a black background, and every clip with sound is mixed in at
-    full level. Placeholder slates render as title cards, so a timeline with no footage becomes an animatic. Gaps are
+    full level. Placeholder slates render as title cards, so a timeline with no footage becomes an animatic. Spoken lines are drawn as subtitles. Gaps are
     black and silent. The mute buttons in the editor are not saved with the timeline, so they do not apply.
     """
 
@@ -100,6 +100,13 @@ class OTIOToMovie(SuccessFailureNode):
                 tooltip="H.264 constant rate factor. Lower is better quality and a larger file. 18 is close to lossless to the eye and 28 is small.",
                 min_val=0,
                 max_val=51,
+                allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
+            )
+            ParameterBool(
+                name="show_dialogue",
+                default_value=True,
+                ui_options={"display_name": "Show dialogue subtitles"},
+                tooltip="Draw the spoken lines as subtitles while they are spoken, as the editor's viewer does.",
                 allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
             )
             ParameterBool(
@@ -189,6 +196,7 @@ class OTIOToMovie(SuccessFailureNode):
                 self.get_parameter_value("quality") if self.get_parameter_value("quality") is not None else DEFAULT_CRF
             ),
             include_slates=bool(self.get_parameter_value("include_slates")),
+            show_dialogue=bool(self.get_parameter_value("show_dialogue")),
         )
         with tempfile.TemporaryDirectory() as folder:
             movie = Path(folder) / "movie.mp4"
