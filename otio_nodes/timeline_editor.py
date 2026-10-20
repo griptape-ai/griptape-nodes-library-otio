@@ -1,4 +1,4 @@
-"""Edit an OTIO timeline on a timeline widget. The edited timeline comes out as OTIO text and can be saved as a file."""
+"""Edit an OTIO timeline on a timeline widget. The edited timeline comes out as a timeline and can be saved as a file."""
 
 from __future__ import annotations
 
@@ -37,9 +37,15 @@ from otio_nodes.media import (
     viewer_proxy_path,
 )
 from otio_nodes.model import validate_model
-from otio_nodes.node_helpers import save_through_destination
-from otio_nodes.node_params import PLACEHOLDER_MEDIA, create_media_parameters, media_settings, sync_visibility
-from otio_nodes.otio_io import from_json, to_json
+from otio_nodes.node_helpers import as_timeline, save_through_destination, without_editor_keys
+from otio_nodes.node_params import (
+    PLACEHOLDER_MEDIA,
+    create_media_parameters,
+    create_status_parameters,
+    media_settings,
+    sync_visibility,
+    timeline_parameter,
+)
 from otio_nodes.output_directory import connected_destination, to_project_path
 
 __all__ = ["TimelineEditor"]
@@ -48,13 +54,18 @@ LIBRARY_NAME = "Griptape Nodes OpenTimelineIO Library"
 WIDGET_NAME = "TimelineEditor"
 DEFAULT_OUTPUT_NAME = "timeline_edited.otio"
 SOURCE_FILE = "file"
-SOURCE_TEXT = "text"
-SOURCE_OPTIONS = [SOURCE_FILE, SOURCE_TEXT]
+SOURCE_TIMELINE = "timeline"
+SOURCE_OPTIONS = [SOURCE_FILE, SOURCE_TIMELINE]
 MEDIA_EXTENSIONS = [
     ".mov", ".mp4", ".m4v", ".mkv", ".avi", ".webm",  # video
     ".wav", ".aiff", ".aif", ".mp3", ".m4a", ".flac", ".ogg",  # audio
     ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".exr",  # images
 ]  # fmt: skip
+
+
+def is_relative_name(name: str) -> bool:
+    """True for a plain relative path such as tests/blah.otio. A macro, a URL, a home folder or an absolute path is not."""
+    return bool(name) and not name.startswith(("{", "~")) and "://" not in name and not Path(name).is_absolute()
 
 
 def edited_name(source: str | Path) -> str:
@@ -72,12 +83,12 @@ PATCH_ATTEMPTS = 5
 class TimelineEditor(SuccessFailureNode):
     """Edit an OpenTimelineIO timeline: move and trim clips, split, add SFX and audio clips, and play it back.
 
-    Choose where the timeline comes from in 'Source': an .otio file, or OTIO text connected to 'OTIO' (from Script to
+    Choose where the timeline comes from in 'Source': an .otio file, or a timeline connected to 'Timeline' (from Script to
     Timeline or Load OTIO). The timeline opens in the editor the first time. After that your edits belong to the node: they are kept when the workflow is saved,
     reopened or run, and a new timeline arriving never replaces them. 'Reload' throws them away and opens the input
     again.
 
-    Running the node outputs the edited timeline as OTIO text on 'Edited OTIO'. With a file source it is also saved as
+    Running the node outputs the edited timeline on 'Edited Timeline'. With a file source it is also saved as
     `<name>_edited.otio` in the same folder, and the original is never changed. Set 'Output File' to save somewhere
     else, including when the timeline came in as text. The file is replaced each time.
     """
@@ -93,20 +104,16 @@ class TimelineEditor(SuccessFailureNode):
             ParameterString(
                 name="source",
                 default_value=SOURCE_FILE,
-                tooltip="Where the timeline comes from: an .otio file, or OTIO text connected to 'OTIO'.",
+                tooltip="Where the timeline comes from: an .otio file, or a timeline connected to 'Timeline'.",
                 placeholder_text="Choose file or text",
                 allowed_modes={ParameterMode.PROPERTY},
                 traits={Options(choices=SOURCE_OPTIONS)},
             )
         )
         self.add_parameter(
-            ParameterString(
-                name="otio",
-                tooltip="The timeline as OpenTimelineIO text, for example from Script to Timeline or Load OTIO.",
-                placeholder_text="Connect OTIO text",
-                multiline=True,
-                allowed_modes={ParameterMode.INPUT},
-                hide_property=True,
+            timeline_parameter(
+                "timeline",
+                "The timeline, for example from Script to Timeline or Load OTIO.",
                 hide=True,
             )
         )
@@ -160,14 +167,11 @@ class TimelineEditor(SuccessFailureNode):
             create_media_parameters(self)
         self.add_node_element(media_group)
         self.add_parameter(
-            ParameterString(
-                name="edited_otio",
-                tooltip="The edited timeline as OpenTimelineIO text. It is made each time the node runs and is not saved with the workflow.",
-                placeholder_text="The edited OTIO text will appear here",
-                multiline=True,
-                allowed_modes={ParameterMode.OUTPUT},
-                hide_property=True,
-                serializable=False,
+            timeline_parameter(
+                "edited",
+                "The edited timeline. It is made each time the node runs and is not saved with the workflow.",
+                output=True,
+                ui_options={"display_name": "Edited Timeline"},
             )
         )
         self.add_parameter(
@@ -175,10 +179,12 @@ class TimelineEditor(SuccessFailureNode):
                 name="edited_file",
                 tooltip="Where the edited .otio was saved, empty if it was not saved.",
                 placeholder_text="The saved .otio path will appear here",
+                allow_variable_substitution=False,
                 allowed_modes={ParameterMode.OUTPUT},
             )
         )
-        self._create_status_parameters(
+        create_status_parameters(
+            self,
             result_details_tooltip="Details about the save result or any errors",
             result_details_placeholder="Save status will appear here.",
         )
@@ -186,7 +192,7 @@ class TimelineEditor(SuccessFailureNode):
     # Opening the input
 
     def _uses_text(self) -> bool:
-        return self.get_parameter_value("source") == SOURCE_TEXT
+        return self.get_parameter_value("source") == SOURCE_TIMELINE
 
     def _file_path(self) -> str:
         """The chosen file, or "" when the timeline comes from text."""
@@ -194,31 +200,30 @@ class TimelineEditor(SuccessFailureNode):
 
     def _has_input(self) -> bool:
         if self._uses_text():
-            return bool(str(self.get_parameter_value("otio") or "").strip())
+            return bool(self.get_parameter_value("timeline"))
         return bool(self._file_path())
 
     def _source(self) -> dict[str, Any] | None:
-        """The timeline from the chosen source: the connected OTIO text, or the chosen file."""
+        """The timeline from the chosen source: the connected timeline, or the chosen file."""
         if self._uses_text():
-            text = str(self.get_parameter_value("otio") or "").strip()
-        else:
-            path = self._file_path()
-            text = File(path).read_text() if path else ""
-        return from_json(text) if text else None
+            timeline = as_timeline(self.get_parameter_value("timeline"))
+            return copy.deepcopy(timeline) if timeline else None  # the editor changes its copy, not the upstream node's
+        path = self._file_path()
+        return as_timeline(File(path).read_text()) if path else None
 
     def after_value_set(self, parameter: Parameter, value: Any) -> None:
         name = parameter.name
         if name == "source":
-            if value == SOURCE_TEXT:
-                self.show_parameter_by_name("otio")
+            if value == SOURCE_TIMELINE:
+                self.show_parameter_by_name("timeline")
                 self.hide_parameter_by_name("otio_file")
             else:
                 self.show_parameter_by_name("otio_file")
-                self.hide_parameter_by_name("otio")
+                self.hide_parameter_by_name("timeline")
             if not self.get_parameter_value("edited_timeline"):
                 self._open()
-        elif name in ("otio", "otio_file") and value and not self.get_parameter_value("edited_timeline"):
-            if (name == "otio") == self._uses_text():
+        elif name in ("timeline", "otio_file") and value and not self.get_parameter_value("edited_timeline"):
+            if (name == "timeline") == self._uses_text():
                 self._open()
         elif name == "edited_timeline" and isinstance(value, dict) and value.get("reload"):
             self._reload_requested(value)
@@ -238,7 +243,8 @@ class TimelineEditor(SuccessFailureNode):
         self.set_parameter_value("edited_timeline", cleaned)
         self.publish_update_to_parameter("edited_timeline", cleaned)
         self._set_status_results(
-            was_successful=False, result_details="There is nothing to reload. Connect 'OTIO' or choose an .otio file."
+            was_successful=False,
+            result_details="There is nothing to reload. Connect 'Timeline' or choose an .otio file.",
         )
 
     @staticmethod
@@ -433,7 +439,7 @@ class TimelineEditor(SuccessFailureNode):
             success=opened,
             details="Reloaded the timeline."
             if opened
-            else "There is nothing to reload. Connect 'OTIO' or choose an .otio file.",
+            else "There is nothing to reload. Connect 'Timeline' or choose an .otio file.",
             response=button_details,
             altered_workflow_state=opened,
         )
@@ -443,7 +449,7 @@ class TimelineEditor(SuccessFailureNode):
     @staticmethod
     def _problems(timeline: Any, *, remakes_media: bool = False) -> list[str]:
         if not isinstance(timeline, dict) or not timeline.get("tracks"):
-            return ["There is no timeline to edit. Choose a 'Source', then connect 'OTIO' or choose an .otio file."]
+            return ["There is no timeline to edit. Choose a 'Source', then connect 'Timeline' or choose an .otio file."]
         try:
             validate_model(timeline, remakes_media=remakes_media)
         except ValueError as e:
@@ -464,15 +470,20 @@ class TimelineEditor(SuccessFailureNode):
         try:
             yield lambda: self._run()
         except Exception as e:
-            self.parameter_output_values["edited_otio"] = ""
+            self.parameter_output_values["edited"] = None
             self.parameter_output_values["edited_file"] = ""
             self._set_status_results(was_successful=False, result_details=f"Run failed: {e}")
             self._handle_failure_exception(e)
 
+    def _chosen_output(self) -> str:
+        """What was typed or picked in 'Output File', or "" when it is still the default name."""
+        chosen = str(self.get_parameter_value("output_file") or "")
+        return "" if chosen == DEFAULT_OUTPUT_NAME else chosen
+
     def _target(self) -> str:
         """Where to save: 'Output File' if it has been set, else beside the chosen file, else nowhere."""
-        chosen = str(self.get_parameter_value("output_file") or "")
-        if chosen and chosen != DEFAULT_OUTPUT_NAME:
+        chosen = self._chosen_output()
+        if chosen:
             return chosen
         path = self._file_path()
         return str(Path(File(path).resolve()).parent / edited_name(path)) if path else ""
@@ -485,7 +496,11 @@ class TimelineEditor(SuccessFailureNode):
             return False
 
     def _destination(self, target: str) -> Any:
-        """A connected FileOutputSettings node if there is one, otherwise `target`, replacing any file already there."""
+        """Where to write. A relative name set in 'Output File' goes through the project's save situation, so
+        tests/blah.otio lands in the project's outputs folder and not in whatever folder the engine runs from. A
+        connected FileOutputSettings node is used as it is. Any other name, or none, replaces that file."""
+        if is_relative_name(self._chosen_output()):
+            return self._output_file.build_file()
         return connected_destination(self, "output_file") or ProjectFileDestination(target)
 
     @staticmethod
@@ -532,7 +547,7 @@ class TimelineEditor(SuccessFailureNode):
         if for_widget != self.get_parameter_value("edited_timeline"):
             self.set_parameter_value("edited_timeline", for_widget)
             self.publish_update_to_parameter("edited_timeline", for_widget)
-        self.parameter_output_values["edited_otio"] = to_json(timeline)
+        self.parameter_output_values["edited"] = without_editor_keys(timeline)
         self.parameter_output_values["edited_file"] = saved_path
         details = f"Saved {saved_path}" if saved_path else "Passed on the edited timeline. It was not saved to a file."
         self._set_status_results(was_successful=True, result_details=details)

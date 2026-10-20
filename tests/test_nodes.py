@@ -8,9 +8,9 @@ from otio_nodes.fountain import parse
 from otio_nodes.load_fountain_script import LoadFountainScript
 from otio_nodes.load_otio import LoadOTIO
 from otio_nodes.otio_io import from_json, to_json
-from otio_nodes.otio_to_fountain import OTIOToFountain
 from otio_nodes.save_otio import SaveOTIO
 from otio_nodes.script_to_timeline import ScriptToTimeline
+from otio_nodes.timeline_to_fountain import TimelineToFountain
 
 TEXT = """Title: Test Film
 
@@ -51,7 +51,7 @@ def built(**settings) -> dict:
     for key, value in settings.items():
         node.set_parameter_value(key, value)
     run(node)
-    return from_json(node.parameter_output_values["otio"])
+    return node.parameter_output_values["timeline"]
 
 
 def test_load_from_text():
@@ -124,7 +124,7 @@ def test_build_produces_timeline_and_summary():
     node.set_parameter_value("script", loaded())
     assert node.validate_before_node_run() is None
     run(node)
-    timeline = from_json(node.parameter_output_values["otio"])
+    timeline = node.parameter_output_values["timeline"]
     assert [t["name"] for t in timeline["tracks"]] == ["Shots", "JACK", "JILL (V.O.)", "SFX", "Audio"]
     assert node.parameter_output_values["runtime_seconds"] > 0
     assert "Shots: 3 in 2 sequences" in node.parameter_output_values["summary"]
@@ -143,7 +143,7 @@ def test_build_custom_cues():
     node.set_parameter_value("script", loaded("INT. A - DAY\n\nSTART here.\n\nPAN over the room.\n"))
     node.set_parameter_value("shot_cues", "pan\n\n")
     run(node)
-    assert len(from_json(node.parameter_output_values["otio"])["tracks"][0]["clips"]) == 2
+    assert len(node.parameter_output_values["timeline"]["tracks"][0]["clips"]) == 2
 
 
 def test_build_saves_otio_into_the_folder_when_asked(tmp_path: Path):
@@ -181,24 +181,23 @@ def test_data_parameters_hide_their_data_and_text_outputs_are_not_saved():
     hidden_cases = [
         (LoadFountainScript(name="a"), "script"),
         (ScriptToTimeline(name="b"), "script"),
-        (OTIOToFountain(name="k"), "otio"),
-        (ScriptToTimeline(name="c"), "otio"),
-        (SaveOTIO(name="d"), "otio"),
-        (LoadOTIO(name="e"), "otio"),
-        (TimelineEditor(name="f"), "otio"),
-        (TimelineEditor(name="g"), "edited_otio"),
+        (TimelineToFountain(name="k"), "timeline"),
+        (ScriptToTimeline(name="c"), "timeline"),
+        (SaveOTIO(name="d"), "timeline"),
+        (LoadOTIO(name="e"), "timeline"),
+        (TimelineEditor(name="f"), "timeline"),
+        (TimelineEditor(name="g"), "edited"),
     ]
     for node, name in hidden_cases:
         parameter = node.get_parameter_by_name(name)
         assert parameter is not None
         assert parameter.ui_options.get("hide_property") is True, f"{type(node).__name__}.{name}"
 
-    # OTIO text is about ten times the size of the data it comes from. Outputs are made again on every run, so they are
-    # left out of the saved workflow.
+    # Outputs are made again on every run, so they are left out of the saved workflow.
     for node, name in (
-        (ScriptToTimeline(name="h"), "otio"),
-        (LoadOTIO(name="i"), "otio"),
-        (TimelineEditor(name="j"), "edited_otio"),
+        (ScriptToTimeline(name="h"), "timeline"),
+        (LoadOTIO(name="i"), "timeline"),
+        (TimelineEditor(name="j"), "edited"),
     ):
         parameter = node.get_parameter_by_name(name)
         assert parameter is not None and parameter.serializable is False, f"{type(node).__name__}.{name}"
@@ -222,7 +221,7 @@ def test_save_otio_saves_into_the_folder(tmp_path: Path):
     node = SaveOTIO(name="write")
     node.set_parameter_value("placeholder_media", False)
     node.set_parameter_value("directory", str(tmp_path / "out"))
-    node.set_parameter_value("otio", to_json(built()))
+    node.set_parameter_value("timeline", built())
     assert node.validate_before_node_run() is None
     run(node)
     saved = Path(node.parameter_output_values["otio_path"])
@@ -235,7 +234,7 @@ def test_save_otio_version_token_counts_up(tmp_path: Path):
     node = SaveOTIO(name="write")
     node.set_parameter_value("placeholder_media", False)
     node.set_parameter_value("directory", str(tmp_path / "timeline_v{###}"))
-    node.set_parameter_value("otio", to_json(built()))
+    node.set_parameter_value("timeline", built())
     run(node)
     run(node)
     assert (tmp_path / "timeline_v001" / "timeline.otio").exists()
@@ -249,9 +248,9 @@ def test_save_otio_validation_and_unreadable_text(tmp_path: Path):
 
     node.set_parameter_value("placeholder_media", False)
     node.set_parameter_value("directory", str(tmp_path / "out"))
-    node.set_parameter_value("otio", "this is not OTIO")
+    node.set_parameter_value("timeline", "this is not OTIO")
     assert node.validate_before_node_run() is None
-    with pytest.raises(NodeError, match="not a readable"):
+    with pytest.raises(NodeError, match="no timeline to save"):
         run(node)
     assert not (tmp_path / "out").exists()
 
@@ -263,7 +262,7 @@ def test_load_otio_round_trip(tmp_path: Path):
     node = LoadOTIO(name="read")
     node.set_parameter_value("otio_file", str(path))
     run(node)
-    assert from_json(node.parameter_output_values["otio"]) == timeline
+    assert node.parameter_output_values["timeline"] == timeline
     assert "Shots: 3" in node.parameter_output_values["summary"]
 
 
@@ -302,7 +301,7 @@ def test_build_makes_placeholder_media_next_to_the_otio(tmp_path: Path, monkeypa
     media = tmp_path / "film" / "media"
     assert list(media.glob("slate_shot-001_*.mov"))
     assert list(media.glob("silence_*f.mov"))
-    timeline = from_json(node.parameter_output_values["otio"])
+    timeline = node.parameter_output_values["timeline"]
     shot = timeline["tracks"][0]["clips"][0]
     assert shot["media"]["start"] == 48
     assert shot["media"]["duration"] == shot["duration"] + 96
@@ -342,7 +341,7 @@ def new_editor(**values):
     node = TimelineEditor(name="editor")
     node.set_parameter_value("placeholder_media", False)
     # The source is chosen explicitly. These tests give text or a file, so pick the one they use.
-    node.set_parameter_value("source", "text" if "otio" in values else "file")
+    node.set_parameter_value("source", "timeline" if "timeline" in values else "file")
     for key, value in values.items():
         node.set_parameter_value(key, value)
     return node
@@ -364,7 +363,7 @@ def test_editor_opens_the_file_and_saves_an_edited_copy_beside_it(tmp_path: Path
     saved = tmp_path / "in" / "film_edited.otio"
     assert node.parameter_output_values["edited_file"] == str(saved)
     assert from_json(saved.read_text(encoding="utf-8")) == edited
-    assert from_json(node.parameter_output_values["edited_otio"]) == edited
+    assert node.parameter_output_values["edited"] == edited
     assert from_json(path.read_text(encoding="utf-8")) == model, "the original is never changed"
     assert "Saved" in node.get_parameter_value("result_details")
 
@@ -377,7 +376,7 @@ def test_running_reads_the_edits_and_does_not_change_them(tmp_path: Path):
     for _ in range(3):
         run(node)
         assert node.get_parameter_value("edited_timeline") == edited
-        assert from_json(node.parameter_output_values["edited_otio"]) == edited
+        assert node.parameter_output_values["edited"] == edited
 
 
 def test_a_file_arriving_later_never_replaces_the_edits(tmp_path: Path):
@@ -549,7 +548,7 @@ def test_every_string_parameter_has_a_placeholder():
         SaveOTIO(name="c"),
         LoadOTIO(name="d"),
         TimelineEditor(name="e"),
-        OTIOToFountain(name="f"),
+        TimelineToFountain(name="f"),
     ):
         for parameter in node.root_ui_element.find_elements_by_type(ParameterString):
             if not parameter.ui_options.get("placeholder_text"):
@@ -559,13 +558,13 @@ def test_every_string_parameter_has_a_placeholder():
 
 def test_editor_takes_otio_text_and_passes_the_edited_text_on(tmp_path: Path):
     model = built()
-    node = new_editor(otio=to_json(model))
+    node = new_editor(timeline=model)
     assert node.get_parameter_value("edited_timeline") == model
     edited = renamed(model, "Opening")
     node.set_parameter_value("edited_timeline", edited)
     assert node.validate_before_node_run() is None
     run(node)
-    assert from_json(node.parameter_output_values["edited_otio"]) == edited
+    assert node.parameter_output_values["edited"] == edited
     assert node.parameter_output_values["edited_file"] == ""
     assert "not saved to a file" in node.get_parameter_value("result_details")
     assert not list(tmp_path.glob("**/*.otio")), "text in and no output file: nothing is written"
@@ -573,7 +572,7 @@ def test_editor_takes_otio_text_and_passes_the_edited_text_on(tmp_path: Path):
 
 def test_editor_with_text_in_saves_when_an_output_file_is_set(tmp_path: Path):
     model = built()
-    node = new_editor(otio=to_json(model))
+    node = new_editor(timeline=model)
     target = tmp_path / "out" / "cut.otio"
     node.set_parameter_value("output_file", str(target))
     node.set_parameter_value("edited_timeline", renamed(model, "Opening"))
@@ -585,8 +584,8 @@ def test_editor_with_text_in_saves_when_an_output_file_is_set(tmp_path: Path):
 def test_editor_uses_only_the_chosen_source(tmp_path: Path):
     path, file_model = write_input(tmp_path)
     text_model = built(words_per_second=1.0)
-    node = new_editor(otio=to_json(text_model), otio_file=str(path))
-    assert node.get_parameter_value("source") == "text"
+    node = new_editor(timeline=text_model, otio_file=str(path))
+    assert node.get_parameter_value("source") == "timeline"
     assert node.get_parameter_value("edited_timeline") == text_model
 
     # Switching the source opens that source, once the editor has nothing in it (Reload does it at any time).
@@ -599,7 +598,7 @@ def test_editor_uses_only_the_chosen_source(tmp_path: Path):
 
 def test_editor_text_source_does_not_save_beside_a_file(tmp_path: Path):
     path, _ = write_input(tmp_path)
-    node = new_editor(otio=to_json(built()), otio_file=str(path))
+    node = new_editor(timeline=built(), otio_file=str(path))
     run(node)
     assert node.parameter_output_values["edited_file"] == ""
     assert not (tmp_path / "in" / "film_edited.otio").exists()
@@ -610,65 +609,43 @@ def test_the_source_dropdown_shows_only_the_matching_input():
 
     node = TimelineEditor(name="editor")
     assert node.get_parameter_value("source") == "file"
-    assert hidden(node, "otio") and not hidden(node, "otio_file")
-    node.set_parameter_value("source", "text")
-    assert hidden(node, "otio_file") and not hidden(node, "otio")
+    assert hidden(node, "timeline") and not hidden(node, "otio_file")
+    node.set_parameter_value("source", "timeline")
+    assert hidden(node, "otio_file") and not hidden(node, "timeline")
     node.set_parameter_value("source", "file")
-    assert hidden(node, "otio") and not hidden(node, "otio_file")
-
-
-def test_otio_to_fountain_source_dropdown(tmp_path: Path):
-    from otio_nodes.otio_to_fountain import OTIOToFountain
-
-    node = OTIOToFountain(name="fountain")
-    assert node.get_parameter_value("source") == "text"
-    assert hidden(node, "otio_file") and not hidden(node, "otio")
-    node.set_parameter_value("source", "file")
-    assert hidden(node, "otio") and not hidden(node, "otio_file")
-
-    path, _ = write_input(tmp_path)
-    ignored = fountain_node(otio=to_json(built(words_per_second=1.0)))
-    ignored.set_parameter_value("otio_file", str(path))
-    run(ignored)
-    assert "INT. ROOM - DAY" in ignored.parameter_output_values["fountain"]
-    only_file = fountain_node(otio_file=str(path))
-    only_file.set_parameter_value("otio", "this is not OTIO")
-    run(only_file)  # the text is not used, so it cannot fail
-    assert "INT. ROOM - DAY" in only_file.parameter_output_values["fountain"]
+    assert hidden(node, "timeline") and not hidden(node, "otio_file")
 
 
 def test_editor_text_arriving_later_never_replaces_the_edits():
     model = built()
-    node = new_editor(otio=to_json(model))
+    node = new_editor(timeline=model)
     node.set_parameter_value("edited_timeline", renamed(model, "Opening"))
-    node.set_parameter_value("otio", to_json(built(words_per_second=1.0)))
+    node.set_parameter_value("timeline", built(words_per_second=1.0))
     assert first_clip_name(node) == "Opening"
     click_reload(node)
     assert click_reload(node).success
     assert first_clip_name(node) != "Opening"
 
 
-def test_editor_rejects_text_that_is_not_otio():
-    node = new_editor(otio="this is not OTIO")
+def test_editor_says_so_when_the_connected_value_is_not_a_timeline():
+    node = new_editor(timeline="this is not OTIO")
     assert node.get_parameter_value("edited_timeline") in (None, {})
-    with pytest.raises(NodeError, match="Could not read the timeline"):
+    with pytest.raises(NodeError, match="no timeline to edit"):
         run(node)
 
 
 def fountain_node(**values):
-    from otio_nodes.otio_to_fountain import OTIOToFountain
+    from otio_nodes.timeline_to_fountain import TimelineToFountain
 
-    node = OTIOToFountain(name="fountain")
+    node = TimelineToFountain(name="fountain")
     node.set_parameter_value("save_fountain", False)
-    node.set_parameter_value("source", "file" if "otio_file" in values else "text")
     for key, value in values.items():
         node.set_parameter_value(key, value)
     return node
 
 
-def test_otio_to_fountain_writes_the_script_from_otio_text():
-    text = to_json(built())
-    node = fountain_node(otio=text)
+def test_timeline_to_fountain_writes_the_script_from_otio_text():
+    node = fountain_node(timeline=built())
     assert node.validate_before_node_run() is None
     run(node)
     script = node.parameter_output_values["fountain"]
@@ -679,17 +656,10 @@ def test_otio_to_fountain_writes_the_script_from_otio_text():
     assert "Wrote 2 scenes" in node.get_parameter_value("result_details")
 
 
-def test_otio_to_fountain_reads_a_file(tmp_path: Path):
-    path, _ = write_input(tmp_path)
-    node = fountain_node(otio_file=str(path))
-    run(node)
-    assert "INT. ROOM - DAY" in node.parameter_output_values["fountain"]
-
-
-def test_otio_to_fountain_carries_edits_and_notes_options(tmp_path: Path):
+def test_timeline_to_fountain_carries_edits_and_notes_options(tmp_path: Path):
     model = built()
     model["tracks"][0]["clips"][0]["description"] = "JACK does something new."
-    node = fountain_node(otio=to_json(model), include_timing=True)
+    node = fountain_node(timeline=model, include_timing=True)
     run(node)
     script = node.parameter_output_values["fountain"]
     assert "JACK does something new." in script
@@ -699,8 +669,8 @@ def test_otio_to_fountain_carries_edits_and_notes_options(tmp_path: Path):
     assert " s]]" not in node.parameter_output_values["fountain"]
 
 
-def test_otio_to_fountain_saves_through_the_file_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    node = fountain_node(otio=to_json(built()))
+def test_timeline_to_fountain_saves_through_the_file_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    node = fountain_node(timeline=built())
     node.set_parameter_value("save_fountain", True)
 
     class Destination:
@@ -715,43 +685,41 @@ def test_otio_to_fountain_saves_through_the_file_output(tmp_path: Path, monkeypa
     assert saved.read_text(encoding="utf-8") == node.parameter_output_values["fountain"]
 
 
-def test_otio_to_fountain_save_toggle_hides_the_output_file():
-    from otio_nodes.otio_to_fountain import OTIOToFountain
+def test_timeline_to_fountain_save_toggle_hides_the_output_file():
+    from otio_nodes.timeline_to_fountain import TimelineToFountain
 
-    node = OTIOToFountain(name="fountain")
+    node = TimelineToFountain(name="fountain")
     assert not hidden(node, "output_file")
     node.set_parameter_value("save_fountain", False)
     assert hidden(node, "output_file")
 
 
-def test_otio_to_fountain_validation_and_failures(tmp_path: Path):
+def test_timeline_to_fountain_validation_and_failures():
     errors = fountain_node().validate_before_node_run()
     assert errors and "no timeline to write a script from" in str(errors[0])
-    with pytest.raises(NodeError, match="not a readable"):
-        run(fountain_node(otio="this is not OTIO"))
-    with pytest.raises(NodeError, match="Could not read"):
-        run(fountain_node(otio_file=str(tmp_path / "missing.otio")))
+    with pytest.raises(NodeError, match="no timeline to write"):
+        run(fountain_node(timeline="this is not OTIO"))
 
 
-def test_otio_to_fountain_says_when_there_is_nothing_to_write():
+def test_timeline_to_fountain_says_when_there_is_nothing_to_write():
     model = built()
     model["tracks"] = [t for t in model["tracks"] if t["role"] != "shots"]
     with pytest.raises(NodeError, match="no scenes, action or dialogue"):
-        run(fountain_node(otio=to_json(model)))
+        run(fountain_node(timeline=model))
 
 
 def test_a_script_goes_around_the_whole_loop():
     """Script to timeline to edited timeline to script, then back into Load Fountain Script."""
     from otio_nodes.timeline_editor import TimelineEditor
 
-    editor = new_editor(otio=to_json(built()))
+    editor = new_editor(timeline=built())
     edited = editor.get_parameter_value("edited_timeline")
     edited["tracks"][1]["clips"][0]["description"] = "A line that was edited in the timeline."
     editor.set_parameter_value("edited_timeline", edited)
     run(editor)
     assert isinstance(editor, TimelineEditor)
 
-    node = fountain_node(otio=editor.parameter_output_values["edited_otio"])
+    node = fountain_node(timeline=editor.parameter_output_values["edited"])
     run(node)
     script = node.parameter_output_values["fountain"]
     assert "A line that was edited in the timeline." in script
@@ -1023,8 +991,8 @@ def test_the_selection_travels_with_the_timeline_but_not_into_the_otio(tmp_path:
     node = new_editor(otio_file=str(path))
     select_clip(node, "shot-002")
     run(node)
-    assert "selected" not in from_json(node.parameter_output_values["edited_otio"])
-    assert "shot-002" not in node.parameter_output_values["edited_otio"].split('"metadata"')[0]
+    assert "selected" not in node.parameter_output_values["edited"], "the editor's own keys are not passed on"
+    assert "previews" not in node.parameter_output_values["edited"]
     assert node.get_parameter_value("edited_timeline")["selected"] == "shot-002", "the node keeps it for the picker"
 
 
@@ -1042,7 +1010,7 @@ def test_viewer_copies_are_made_in_the_background_and_reported(tmp_path: Path, m
     except ValueError:
         pytest.skip("ffmpeg is not available")
     monkeypatch.setattr(timeline_editor, "PREVIEW_FOLDER", str(tmp_path / "previews"))
-    node = new_editor(otio=to_json(built()))
+    node = new_editor(timeline=built())
     timeline = node.get_parameter_value("edited_timeline")
     timeline["tracks"][0]["clips"][0]["media"] = {"url": str(source), "start": 0, "duration": None, "key": ""}
     node.set_parameter_value("edited_timeline", timeline)
@@ -1084,7 +1052,7 @@ def test_a_reload_request_with_no_input_is_dropped_and_keeps_the_edits():
 
 def test_a_muted_track_survives_running_the_editor(tmp_path: Path):
     model = built()
-    node = new_editor(otio=to_json(model))
+    node = new_editor(timeline=model)
     timeline = node.get_parameter_value("edited_timeline")
     sfx = next(t for t in timeline["tracks"] if t["role"] == "sfx")
     sfx["muted"] = True
@@ -1092,11 +1060,11 @@ def test_a_muted_track_survives_running_the_editor(tmp_path: Path):
     run(node)
     after = node.get_parameter_value("edited_timeline")
     assert next(t for t in after["tracks"] if t["role"] == "sfx").get("muted") is True
-    assert "muted" not in node.parameter_output_values["edited_otio"], "mute is for playback and is not in the OTIO"
+    assert "muted" not in node.parameter_output_values["edited"], "mute is for playback and is not in the OTIO"
 
 
 def test_a_preview_patch_does_not_undo_an_edit_made_while_it_ran(tmp_path: Path):
-    node = new_editor(otio=to_json(built()))
+    node = new_editor(timeline=built())
     edited = {"done": False}
 
     def change(timeline: dict) -> None:
@@ -1110,3 +1078,98 @@ def test_a_preview_patch_does_not_undo_an_edit_made_while_it_ran(tmp_path: Path)
     now = node.get_parameter_value("edited_timeline")
     assert now["tracks"][0]["clips"][0]["name"] == "Edited meanwhile"
     assert now["previews"] == {"a": "http://x/a.mp4"}
+
+
+def test_timeline_to_movie_needs_a_timeline_and_renders_one(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    from otio_nodes import timeline_to_movie
+    from otio_nodes.timeline_to_movie import TimelineToMovie
+
+    assert TimelineToMovie(name="movie").validate_before_node_run()
+
+    class Destination:
+        def write_bytes(self, content: bytes):
+            target = tmp_path / "timeline.mp4"
+            target.write_bytes(content)
+            return SimpleNamespace(resolve=lambda: str(target))
+
+    seen = {}
+
+    def fake_render(model, resolve, output, settings):
+        seen["settings"] = settings
+        output.write_bytes(b"movie")
+        return 2
+
+    monkeypatch.setattr(timeline_to_movie, "render_movie", fake_render)
+    node = TimelineToMovie(name="movie")
+    monkeypatch.setattr(node._output_file, "build_file", lambda: Destination())
+    node.set_parameter_value("timeline", built())
+    node.set_parameter_value("width", 640)
+    node.set_parameter_value("height", 360)
+    run(node)
+    assert (tmp_path / "timeline.mp4").read_bytes() == b"movie"
+    assert seen["settings"].width == 640 and seen["settings"].height == 360
+    assert str(tmp_path / "timeline.mp4") in str(node.parameter_output_values["video"].value)
+
+
+def test_outputs_that_hold_project_macros_are_not_scanned_for_variables():
+    """A {outputs}/... value in a parameter that allows substitution marks the node dirty before every run."""
+    from otio_nodes.timeline_to_fountain import TimelineToFountain
+
+    wanted = {
+        ScriptToTimeline: ("timeline", "otio_path", "output_directory"),
+        SaveOTIO: ("otio_path", "output_directory"),
+        TimelineToFountain: ("fountain_file",),
+    }
+    for node_class, names in wanted.items():
+        node = node_class(name="n")
+        for name in names:
+            assert node.get_parameter_by_name(name).allow_variable_substitution is False, (node_class.__name__, name)
+
+
+def test_a_relative_output_file_is_saved_through_the_project_not_the_working_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from otio_nodes.timeline_editor import is_relative_name
+
+    assert is_relative_name("tests/blah.otio") and is_relative_name("blah.otio")
+    assert not any(
+        is_relative_name(n) for n in ("", "/abs/blah.otio", "{outputs}/blah.otio", "~/blah.otio", "file:///a.otio")
+    )
+
+    node = new_editor(timeline=built())
+    node.set_parameter_value("placeholder_media", False)
+    node.set_parameter_value("output_file", "tests/blah.otio")
+    asked = []
+
+    class Destination:
+        def resolve(self):
+            raise ValueError("the name is settled when it is written")
+
+        def write_text(self, text: str):
+            target = tmp_path / "blah_v001.otio"
+            target.write_text(text, encoding="utf-8")
+            asked.append(target)
+            return SimpleNamespace(
+                resolve=lambda: str(target), write_text=lambda t: target.write_text(t, encoding="utf-8")
+            )
+
+    monkeypatch.setattr(node._output_file, "build_file", lambda **_: Destination())
+    run(node)
+    assert asked and asked[0].exists(), "written through the destination the project built"
+
+
+def test_result_details_may_hold_a_project_macro_without_unresolving_the_node():
+    from otio_nodes.timeline_editor import TimelineEditor
+    from otio_nodes.timeline_to_movie import TimelineToMovie
+
+    for node_class in (
+        LoadFountainScript,
+        ScriptToTimeline,
+        LoadOTIO,
+        SaveOTIO,
+        TimelineToFountain,
+        TimelineToMovie,
+        TimelineEditor,
+    ):
+        details = node_class(name="n").get_parameter_by_name("result_details")
+        assert details is not None and details.allow_variable_substitution is False, node_class.__name__

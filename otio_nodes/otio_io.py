@@ -260,8 +260,10 @@ def _from_otio_clip(clip: otio.schema.Clip, rate: float, fallback_id: str, warni
     }
 
 
-def to_json(model: dict[str, Any]) -> str:
-    return otio.adapters.write_to_string(model_to_otio(model), "otio_json")
+def to_json(model: dict[str, Any], *, compact: bool = False) -> str:
+    """The timeline as OTIO JSON. `compact` leaves out the indentation, which is about two thirds of the text. Nodes
+    pass it that way, because the text is sent to the editor with every run. Files are written indented to be read."""
+    return otio.adapters.write_to_string(model_to_otio(model), "otio_json", indent=-1 if compact else 4)
 
 
 def from_json(text: str) -> dict[str, Any]:

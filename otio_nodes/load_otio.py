@@ -11,7 +11,8 @@ from griptape_nodes.files.file import File
 from griptape_nodes.traits.file_system_picker import FileSystemPicker
 
 from otio_nodes.node_helpers import timeline_summary
-from otio_nodes.otio_io import from_json, to_json
+from otio_nodes.node_params import create_status_parameters, timeline_parameter
+from otio_nodes.otio_io import from_json
 
 __all__ = ["LoadOTIO"]
 
@@ -36,14 +37,10 @@ class LoadOTIO(SuccessFailureNode):
             )
         )
         self.add_parameter(
-            ParameterString(
-                name="otio",
-                tooltip="The timeline as OpenTimelineIO text, ready to connect to another node. It is made each time the node runs and is not saved with the workflow.",
-                placeholder_text="The OTIO text will appear here",
-                multiline=True,
-                allowed_modes={ParameterMode.OUTPUT},
-                hide_property=True,
-                serializable=False,
+            timeline_parameter(
+                "timeline",
+                "The timeline, ready to connect to another node. It is made each time the node runs and is not saved with the workflow.",
+                output=True,
             )
         )
         self.add_parameter(
@@ -55,7 +52,8 @@ class LoadOTIO(SuccessFailureNode):
                 allowed_modes={ParameterMode.OUTPUT},
             )
         )
-        self._create_status_parameters(
+        create_status_parameters(
+            self,
             result_details_tooltip="Details about the load result or any errors",
             result_details_placeholder="Load status will appear here.",
         )
@@ -71,7 +69,7 @@ class LoadOTIO(SuccessFailureNode):
         try:
             yield lambda: self._load()
         except Exception as e:
-            self.parameter_output_values["otio"] = ""
+            self.parameter_output_values["timeline"] = None
             self.parameter_output_values["summary"] = ""
             self._set_status_results(was_successful=False, result_details=f"Load failed: {e}")
             self._handle_failure_exception(e)
@@ -88,6 +86,6 @@ class LoadOTIO(SuccessFailureNode):
         except Exception as e:
             msg = f"'{path}' is not a readable OpenTimelineIO timeline: {e}"
             raise NodeError(msg) from e
-        self.parameter_output_values["otio"] = to_json(model)
+        self.parameter_output_values["timeline"] = model
         self.parameter_output_values["summary"] = timeline_summary(model)
         self._set_status_results(was_successful=True, result_details=f"Loaded {path}")

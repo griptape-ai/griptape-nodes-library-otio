@@ -5,8 +5,9 @@ from __future__ import annotations
 from typing import Any, NamedTuple
 
 from griptape_nodes.exe_types.core_types import ParameterMode
-from griptape_nodes.exe_types.node_types import BaseNode
+from griptape_nodes.exe_types.node_types import BaseNode, SuccessFailureNode
 from griptape_nodes.exe_types.param_types.parameter_bool import ParameterBool
+from griptape_nodes.exe_types.param_types.parameter_dict import ParameterDict
 from griptape_nodes.exe_types.param_types.parameter_float import ParameterFloat
 from griptape_nodes.exe_types.param_types.parameter_string import ParameterString
 
@@ -25,6 +26,35 @@ class OutputSettings(NamedTuple):
     file_name: str
     make_media: bool
     handle_seconds: float
+
+
+def timeline_parameter(name: str, tooltip: str, *, output: bool = False, **kwargs: Any) -> ParameterDict:
+    """A parameter that carries the timeline between nodes as a dict. An output is not saved with the workflow."""
+    parameter = ParameterDict(
+        name=name,
+        default_value=None,
+        tooltip=tooltip,
+        allowed_modes={ParameterMode.OUTPUT if output else ParameterMode.INPUT},
+        hide_property=True,
+        serializable=not output,
+        **kwargs,
+    )
+    # Text inside the timeline, such as a line of dialogue with braces in it, is not a workflow variable.
+    parameter.allow_variable_substitution = False
+    return parameter
+
+
+def create_status_parameters(node: SuccessFailureNode, **kwargs: Any) -> None:
+    """Create the status parameters, with 'result_details' kept as plain text.
+
+    Result details name the saved file, often as a project macro such as {outputs}/timeline_v003/timeline.otio. The
+    engine unresolves a node before every run when a parameter that allows variable substitution holds a {name} value,
+    so a stored macro there would make the node re-run each time.
+    """
+    node._create_status_parameters(**kwargs)  # noqa: SLF001
+    details = node.get_parameter_by_name("result_details")
+    if details is not None:
+        details.allow_variable_substitution = False
 
 
 def create_media_parameters(node: BaseNode) -> None:

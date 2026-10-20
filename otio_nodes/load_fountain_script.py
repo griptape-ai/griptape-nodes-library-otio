@@ -14,6 +14,7 @@ from griptape_nodes.traits.options import Options
 
 from otio_nodes.fountain import parse
 from otio_nodes.node_helpers import script_summary
+from otio_nodes.node_params import create_status_parameters
 
 __all__ = ["LoadFountainScript"]
 
@@ -89,7 +90,8 @@ class LoadFountainScript(SuccessFailureNode):
                 allowed_modes={ParameterMode.OUTPUT},
             )
         )
-        self._create_status_parameters(
+        create_status_parameters(
+            self,
             result_details_tooltip="Details about the load result or any errors",
             result_details_placeholder="Load status will appear here.",
         )
