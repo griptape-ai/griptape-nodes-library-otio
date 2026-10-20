@@ -1,7 +1,7 @@
 // A tooltip that appears quickly. The browser's own title tooltip waits about a second, which is slow for a row of
 // icon buttons. The tip is added to the page body, so it shows above the expanded modal as well.
 
-import { clamp } from './_time.js?v=4ca09e07';
+import { clamp } from './_time.js?v=fb8a0541';
 
 export function createTooltip(doc = document, delay = 120) {
   let tip = null;
