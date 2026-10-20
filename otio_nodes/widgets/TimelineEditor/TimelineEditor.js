@@ -30,7 +30,7 @@ import {
   totalFrames,
   trimClip,
   updateClip,
-} from './_ops.js?v=4acb0602';
+} from './_ops.js?v=4ca09e07';
 import {
   BAND_HEIGHT,
   EDGE_PX,
@@ -42,14 +42,15 @@ import {
   SHOT_LANE_HEIGHT,
   SNAP_PX,
   ensureStyles,
-} from './_styles.js?v=4acb0602';
-import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=4acb0602';
-import { el, readableOn } from './_dom.js?v=4acb0602';
-import { createViewer } from './_viewer.js?v=4acb0602';
-import { createAudio } from './_audio.js?v=4acb0602';
-import { FOLDER_PATH, icon } from './_icons.js?v=4acb0602';
-import { createTooltip } from './_tooltip.js?v=4acb0602';
-import { classifyIncoming, heldEntry, takePreviews } from './_echo.js?v=4acb0602';
+} from './_styles.js?v=4ca09e07';
+import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=4ca09e07';
+import { el, readableOn } from './_dom.js?v=4ca09e07';
+import { createViewer } from './_viewer.js?v=4ca09e07';
+import { createAudio } from './_audio.js?v=4ca09e07';
+import { createWaveforms } from './_waveform.js?v=4ca09e07';
+import { FOLDER_PATH, icon } from './_icons.js?v=4ca09e07';
+import { createTooltip } from './_tooltip.js?v=4ca09e07';
+import { classifyIncoming, heldEntry, takePreviews } from './_echo.js?v=4ca09e07';
 
 const WIDGET_VERSION = '0.2.0';
 const sameModel = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -138,6 +139,7 @@ export default function TimelineEditor(container, props) {
   const details = el('div', { class: 'otl-details empty' });
   const viewer = createViewer();
   const audio = createAudio(root.ownerDocument);
+  const waveforms = createWaveforms(() => renderTimeline());
   const main = el('div', { class: 'otl-main' }, [toolbar, viewer.element, bar, scroll]);
   root.append(main, details);
   container.appendChild(root);
@@ -413,6 +415,17 @@ export default function TimelineEditor(container, props) {
       },
       [el('span', { class: 'h l', 'data-edge': 'start' }), el('span', { class: 'h r', 'data-edge': 'end' })],
     );
+    if (track.kind === 'audio' && isLinked(clip.media)) {
+      const wave = waveforms.canvasFor(
+        root.ownerDocument,
+        current().previews?.[clip.media.url],
+        clip.media.start / rate(),
+        clip.duration / rate(),
+        width,
+        LANE_HEIGHT - 8,
+      );
+      if (wave) node.append(wave);
+    }
     if (width > 36) {
       node.append(el('span', { class: 'n', text: clip.name }));
       if (isShot && clip.description && width > 90) node.append(el('span', { class: 'd', text: clip.description }));
@@ -1113,9 +1126,11 @@ export default function TimelineEditor(container, props) {
     }
     if (kind === 'previews' || kind === 'stalePreviews') {
       // The node is reporting how far it has got with viewer copies of linked files. That changes nothing the user
-      // edits, so only the preview information is taken and nothing is redrawn but the viewer.
+      // edits, so only the preview information is taken. The viewer and the timeline are redrawn, because an audio clip
+      // may now have a file to draw a waveform from.
       takePreviews(state.model, incoming);
       updateViewer();
+      if (!state.drag) renderTimeline();
       return;
     }
     if (!state.model || !sameModel(incoming, state.model)) {
