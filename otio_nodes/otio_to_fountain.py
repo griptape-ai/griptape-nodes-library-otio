@@ -29,7 +29,7 @@ SOURCE_FILE = "file"
 class OTIOToFountain(SuccessFailureNode):
     """Turn a timeline back into a Fountain script: the reverse of Script to Timeline.
 
-    Choose where the timeline comes from in 'Source': OTIO text connected to 'OTIO' (from Script to Timeline, Read OTIO or
+    Choose where the timeline comes from in 'Source': OTIO text connected to 'OTIO' (from Script to Timeline, Load OTIO or
     Timeline Editor), or an .otio file. The
     scene headings, action, dialogue and title page come from what the timeline holds, so edits made in the Timeline
     Editor (text changes, deleted or split shots) are carried into the script. Shots and lines disabled in the timeline

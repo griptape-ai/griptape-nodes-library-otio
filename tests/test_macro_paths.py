@@ -7,13 +7,13 @@ from pathlib import Path
 import pytest
 
 from otio_nodes.load_fountain_script import LoadFountainScript
+from otio_nodes.load_otio import LoadOTIO
 from otio_nodes.otio_io import from_json
 from otio_nodes.otio_to_fountain import OTIOToFountain
 from otio_nodes.output_directory import to_project_path
-from otio_nodes.read_otio import ReadOTIO
+from otio_nodes.save_otio import SaveOTIO
 from otio_nodes.script_to_timeline import ScriptToTimeline
 from otio_nodes.timeline_editor import TimelineEditor
-from otio_nodes.write_otio import WriteOTIO
 from tests.test_nodes import FakeEncoder, built, loaded, run
 
 SCRIPT = "Title: Macro Test\n\nINT. ROOM - DAY\n\nJACK\nHello there my good friend today.\n\nCLOSE UP of Jack.\n"
@@ -59,7 +59,7 @@ def test_every_node_gives_and_takes_macro_paths(scratch_outputs):
     assert edited == f"{macro}/timeline_v001/timeline_edited.otio"
     assert (folder / "timeline_v001" / "timeline_edited.otio").exists(), "saved beside the original"
 
-    read = ReadOTIO(name="read")
+    read = LoadOTIO(name="read")
     read.set_parameter_value("otio_file", edited)
     run(read)
     assert from_json(read.parameter_output_values["otio"])["title"] == "Macro Test"
@@ -71,7 +71,7 @@ def test_every_node_gives_and_takes_macro_paths(scratch_outputs):
     run(fountain)
     assert "INT. ROOM - DAY" in fountain.parameter_output_values["fountain"]
 
-    write = WriteOTIO(name="write")
+    write = SaveOTIO(name="write")
     write.set_parameter_value("placeholder_media", False)
     write.set_parameter_value("directory", f"{macro}/written")
     write.set_parameter_value("otio", read.parameter_output_values["otio"])

@@ -6,20 +6,20 @@ Turn a Fountain script into an OpenTimelineIO (OTIO) timeline. Default clip leng
 
 ## Nodes
 
-OpenTimelineIO is plain text (JSON), so the nodes pass the timeline around as OTIO text. A file is only used at the ends: Read OTIO and the Timeline Editor can read one, and Write OTIO, Script to Timeline and the Timeline Editor can save one.
+OpenTimelineIO is plain text (JSON), so the nodes pass the timeline around as OTIO text. A file is only used at the ends: Load OTIO and the Timeline Editor can read one, and Save OTIO, Script to Timeline and the Timeline Editor can save one.
 
 | Node | Takes | Gives |
 |---|---|---|
 | **Load Fountain Script** | a `.fountain` file or typed text (choose with `source`) | the parsed script, the title, a summary |
 | **Script to Timeline** | the parsed script | OTIO text, the runtime, a summary. Also saves an `.otio` and its media unless `save_otio` is off |
-| **Read OTIO** | an `.otio` file | OTIO text and a summary of what was in it |
+| **Load OTIO** | an `.otio` file | OTIO text and a summary of what was in it |
 | **Timeline Editor** | OTIO text, or an `.otio` file (choose with `source`) | the edited OTIO text. Also saves it as a file when it has somewhere to put it |
-| **Write OTIO** | OTIO text | an `.otio` file in a folder, with placeholder media |
+| **Save OTIO** | OTIO text | an `.otio` file in a folder, with placeholder media |
 | **OTIO to Fountain** | OTIO text, or an `.otio` file (choose with `source`) | the script as Fountain text, and optionally a `.fountain` file |
 
 ```
-Load Fountain Script ──► Script to Timeline ──otio──► Timeline Editor ──edited otio──► Write OTIO
-Read OTIO ───────────────────────────────otio──┘
+Load Fountain Script ──► Script to Timeline ──otio──► Timeline Editor ──edited otio──► Save OTIO
+Load OTIO ───────────────────────────────otio──┘
                        Timeline Editor ──edited otio──► OTIO to Fountain ──fountain──► Load Fountain Script
 ```
 
@@ -33,7 +33,7 @@ OTIO text is about ten times the size of the data it was made from (200 KB for t
 
 ### Output folder
 
-Script to Timeline and Write OTIO save into a folder, set up the same way as the standard library's Extract Frames node. `directory` defaults to `{outputs}/timeline_v{###}`. `{outputs}` and other project macros work, and `{###}` counts up (`timeline_v001`, `timeline_v002`, ...) by looking at the folders already there. The gear button creates and connects a FileOutputSettings node instead. `file_name` (default `timeline`) names the `.otio` inside it. An existing file with the same name is replaced.
+Script to Timeline and Save OTIO save into a folder, set up the same way as the standard library's Extract Frames node. `directory` defaults to `{outputs}/timeline_v{###}`. `{outputs}` and other project macros work, and `{###}` counts up (`timeline_v001`, `timeline_v002`, ...) by looking at the folders already there. The gear button creates and connects a FileOutputSettings node instead. `file_name` (default `timeline`) names the `.otio` inside it. An existing file with the same name is replaced.
 
 ### Placeholder media
 
@@ -110,7 +110,7 @@ A clip's **Media** row in the details panel shows what it points at. Empty means
 
 ## Paths
 
-Nodes give their path outputs as project macro paths, such as `{outputs}/timeline_v003/timeline.otio`, so a workflow still finds its files if the project moves. This covers Script to Timeline (`otio_path`, `output_directory`), Write OTIO, the Timeline Editor (`edited_file`) and OTIO to Fountain (`fountain_file`). Every node that takes a path reads macro paths: the Load Fountain Script file, the Read OTIO file, the Timeline Editor and OTIO to Fountain files, the Output File, and the media paths typed into a clip or chosen with the picker. A path outside the project stays absolute.
+Nodes give their path outputs as project macro paths, such as `{outputs}/timeline_v003/timeline.otio`, so a workflow still finds its files if the project moves. This covers Script to Timeline (`otio_path`, `output_directory`), Save OTIO, the Timeline Editor (`edited_file`) and OTIO to Fountain (`fountain_file`). Every node that takes a path reads macro paths: the Load Fountain Script file, the Load OTIO file, the Timeline Editor and OTIO to Fountain files, the Output File, and the media paths typed into a clip or chosen with the picker. A path outside the project stays absolute.
 
 The OTIO itself is the exception. Programs other than this engine read it, and only this engine can resolve a macro, so media addresses inside an OTIO are always absolute `file://` addresses. The editor keeps media paths as they were typed, so they still follow the project when it moves, and the absolute form is only written into the saved file and the OTIO text.
 
