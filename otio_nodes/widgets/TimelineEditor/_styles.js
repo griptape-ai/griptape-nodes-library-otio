@@ -60,6 +60,7 @@ const CSS = `
 .otl-snapline { position:absolute; top:0; bottom:0; width:0; border-left:2px solid #ffd24d; box-shadow:0 0 8px rgba(255,210,77,.9); z-index:7; pointer-events:none; }
 .otl-details { flex:none; min-height:176px; box-sizing:border-box; display:grid; grid-template-columns:auto 1fr auto 1fr; gap:6px 8px; align-items:center; padding:8px; background:#222; border-radius:4px; }
 .otl-details.empty { display:block; color:#777; }
+.otl-root:not(.otl-full) .otl-details { display:none; } /* the node shows only the timeline. The details open in the modal */
 .otl-details label { color:#999; font-size:11px; }
 .otl-details input[type=checkbox] { justify-self:start; }
 .otl-details input[type=text], .otl-details input[type=number], .otl-details textarea { width:100%; box-sizing:border-box; background:#161616; color:#ddd;
