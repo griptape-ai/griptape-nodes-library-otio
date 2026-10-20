@@ -30,7 +30,7 @@ import {
   totalFrames,
   trimClip,
   updateClip,
-} from './_ops.js?v=679bba3e';
+} from './_ops.js?v=4ca09e07';
 import {
   BAND_HEIGHT,
   EDGE_PX,
@@ -42,15 +42,15 @@ import {
   SHOT_LANE_HEIGHT,
   SNAP_PX,
   ensureStyles,
-} from './_styles.js?v=679bba3e';
-import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=679bba3e';
-import { el, readableOn } from './_dom.js?v=679bba3e';
-import { createViewer } from './_viewer.js?v=679bba3e';
-import { createAudio } from './_audio.js?v=679bba3e';
-import { createWaveforms } from './_waveform.js?v=679bba3e';
-import { FOLDER_PATH, icon } from './_icons.js?v=679bba3e';
-import { createTooltip } from './_tooltip.js?v=679bba3e';
-import { classifyIncoming, heldEntry, takePreviews } from './_echo.js?v=679bba3e';
+} from './_styles.js?v=4ca09e07';
+import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=4ca09e07';
+import { el, readableOn } from './_dom.js?v=4ca09e07';
+import { createViewer } from './_viewer.js?v=4ca09e07';
+import { createAudio } from './_audio.js?v=4ca09e07';
+import { createWaveforms } from './_waveform.js?v=4ca09e07';
+import { FOLDER_PATH, icon } from './_icons.js?v=4ca09e07';
+import { createTooltip } from './_tooltip.js?v=4ca09e07';
+import { classifyIncoming, heldEntry, takePreviews } from './_echo.js?v=4ca09e07';
 
 const WIDGET_VERSION = '0.2.0';
 const sameModel = (a, b) => JSON.stringify(a) === JSON.stringify(b);

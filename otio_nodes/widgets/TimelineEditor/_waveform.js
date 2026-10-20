@@ -8,7 +8,7 @@ const CURVE = 0.6; // below 1 lifts the quiet parts so speech between loud peaks
 const WAVE_COLOR = 'rgba(0,0,0,.55)';
 
 export function createWaveforms(onReady) {
-  const cache = new Map(); // url -> {peaks: Float32Array} when decoded, null when it failed, or 'loading'
+  const cache = new Map(); // url -> {peaks: Float32Array, rate: peaks per second} when decoded, null when it failed, or 'loading'
 
   async function load(url) {
     cache.set(url, 'loading');

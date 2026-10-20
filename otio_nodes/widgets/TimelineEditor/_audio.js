@@ -2,7 +2,7 @@
 // that is sounding gets its own audio element. Only linked files make sound, because the placeholder audio is silent.
 // A muted track is skipped. Nothing plays while paused or scrubbing.
 
-import { audibleAt } from './_ops.js?v=679bba3e';
+import { audibleAt } from './_ops.js?v=4ca09e07';
 
 const MAX_DRIFT = 0.5; // seconds a playing clip may be off before it is pulled back
 const MIN_SEEK_GAP = 1500; // milliseconds between corrections, so seeks never pile up
