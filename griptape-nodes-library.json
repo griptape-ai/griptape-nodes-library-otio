@@ -66,6 +66,15 @@
             }
         },
         {
+            "class_name": "OTIOToMovie",
+            "file_path": "otio_nodes/otio_to_movie.py",
+            "metadata": {
+                "category": "timeline",
+                "description": "Render a timeline to a movie with sound.",
+                "display_name": "OTIO to Movie"
+            }
+        },
+        {
             "class_name": "LoadOTIO",
             "file_path": "otio_nodes/load_otio.py",
             "metadata": {

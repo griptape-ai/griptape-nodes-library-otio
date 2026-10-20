@@ -15,6 +15,7 @@ OpenTimelineIO is plain text (JSON), so the nodes pass the timeline around as OT
 | **Load OTIO** | an `.otio` file | OTIO text and a summary of what was in it |
 | **Timeline Editor** | OTIO text, or an `.otio` file (choose with `source`) | the edited OTIO text. Also saves it as a file when it has somewhere to put it |
 | **Save OTIO** | OTIO text | an `.otio` file in a folder, with placeholder media |
+| **OTIO to Movie** | OTIO text | an H.264 `.mp4` with sound. Video clips are laid on black at their place, every clip with sound is mixed in, and placeholder slates show as title cards. Editor mute buttons are not saved, so they do not apply |
 | **OTIO to Fountain** | OTIO text, or an `.otio` file (choose with `source`) | the script as Fountain text, and optionally a `.fountain` file |
 
 ```

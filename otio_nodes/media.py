@@ -121,6 +121,10 @@ class FfmpegEncoder:
             msg = f"ffmpeg failed: {error.strip() or 'no error text'}"
             raise ValueError(msg)
 
+    def render(self, args: list[str], on_progress: Callable[[float], None] | None, seconds: float | None) -> None:
+        """Run ffmpeg with `args` and report the fraction done as it works."""
+        self._run_with_progress(args, on_progress, seconds)
+
     def proxy(
         self,
         source: Path,

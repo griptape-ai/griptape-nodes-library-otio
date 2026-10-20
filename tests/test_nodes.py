@@ -1110,3 +1110,34 @@ def test_a_preview_patch_does_not_undo_an_edit_made_while_it_ran(tmp_path: Path)
     now = node.get_parameter_value("edited_timeline")
     assert now["tracks"][0]["clips"][0]["name"] == "Edited meanwhile"
     assert now["previews"] == {"a": "http://x/a.mp4"}
+
+
+def test_otio_to_movie_needs_a_timeline_and_renders_one(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    from otio_nodes import otio_to_movie
+    from otio_nodes.otio_to_movie import OTIOToMovie
+
+    assert OTIOToMovie(name="movie").validate_before_node_run()
+
+    class Destination:
+        def write_bytes(self, content: bytes):
+            target = tmp_path / "timeline.mp4"
+            target.write_bytes(content)
+            return SimpleNamespace(resolve=lambda: str(target))
+
+    seen = {}
+
+    def fake_render(model, resolve, output, settings):
+        seen["settings"] = settings
+        output.write_bytes(b"movie")
+        return 2
+
+    monkeypatch.setattr(otio_to_movie, "render_movie", fake_render)
+    node = OTIOToMovie(name="movie")
+    monkeypatch.setattr(node._output_file, "build_file", lambda: Destination())
+    node.set_parameter_value("otio", to_json(built()))
+    node.set_parameter_value("width", 640)
+    node.set_parameter_value("height", 360)
+    run(node)
+    assert (tmp_path / "timeline.mp4").read_bytes() == b"movie"
+    assert seen["settings"].width == 640 and seen["settings"].height == 360
+    assert str(tmp_path / "timeline.mp4") in str(node.parameter_output_values["video"].value)
