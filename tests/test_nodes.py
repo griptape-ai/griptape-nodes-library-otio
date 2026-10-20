@@ -1185,3 +1185,35 @@ def test_outputs_that_hold_project_macros_are_not_scanned_for_variables():
         node = node_class(name="n")
         for name in names:
             assert node.get_parameter_by_name(name).allow_variable_substitution is False, (node_class.__name__, name)
+
+
+def test_a_relative_output_file_is_saved_through_the_project_not_the_working_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from otio_nodes.timeline_editor import is_relative_name
+
+    assert is_relative_name("tests/blah.otio") and is_relative_name("blah.otio")
+    assert not any(
+        is_relative_name(n) for n in ("", "/abs/blah.otio", "{outputs}/blah.otio", "~/blah.otio", "file:///a.otio")
+    )
+
+    node = new_editor(otio=to_json(built()))
+    node.set_parameter_value("placeholder_media", False)
+    node.set_parameter_value("output_file", "tests/blah.otio")
+    asked = []
+
+    class Destination:
+        def resolve(self):
+            raise ValueError("the name is settled when it is written")
+
+        def write_text(self, text: str):
+            target = tmp_path / "blah_v001.otio"
+            target.write_text(text, encoding="utf-8")
+            asked.append(target)
+            return SimpleNamespace(
+                resolve=lambda: str(target), write_text=lambda t: target.write_text(t, encoding="utf-8")
+            )
+
+    monkeypatch.setattr(node._output_file, "build_file", lambda **_: Destination())
+    run(node)
+    assert asked and asked[0].exists(), "written through the destination the project built"
