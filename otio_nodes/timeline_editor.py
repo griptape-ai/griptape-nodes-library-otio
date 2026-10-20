@@ -165,6 +165,7 @@ class TimelineEditor(SuccessFailureNode):
                 tooltip="The edited timeline as OpenTimelineIO text. It is made each time the node runs and is not saved with the workflow.",
                 placeholder_text="The edited OTIO text will appear here",
                 multiline=True,
+                allow_variable_substitution=False,
                 allowed_modes={ParameterMode.OUTPUT},
                 hide_property=True,
                 serializable=False,
@@ -175,6 +176,7 @@ class TimelineEditor(SuccessFailureNode):
                 name="edited_file",
                 tooltip="Where the edited .otio was saved, empty if it was not saved.",
                 placeholder_text="The saved .otio path will appear here",
+                allow_variable_substitution=False,
                 allowed_modes={ParameterMode.OUTPUT},
             )
         )
@@ -532,7 +534,7 @@ class TimelineEditor(SuccessFailureNode):
         if for_widget != self.get_parameter_value("edited_timeline"):
             self.set_parameter_value("edited_timeline", for_widget)
             self.publish_update_to_parameter("edited_timeline", for_widget)
-        self.parameter_output_values["edited_otio"] = to_json(timeline)
+        self.parameter_output_values["edited_otio"] = to_json(timeline, compact=True)
         self.parameter_output_values["edited_file"] = saved_path
         details = f"Saved {saved_path}" if saved_path else "Passed on the edited timeline. It was not saved to a file."
         self._set_status_results(was_successful=True, result_details=details)

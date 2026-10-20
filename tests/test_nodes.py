@@ -1170,3 +1170,18 @@ def test_otio_to_movie_can_read_an_otio_file(tmp_path: Path, monkeypatch: pytest
     )
     run(node)
     assert seen["model"]["tracks"], "the timeline came from the file"
+
+
+def test_outputs_that_hold_project_macros_are_not_scanned_for_variables():
+    """A {outputs}/... value in a parameter that allows substitution marks the node dirty before every run."""
+    from otio_nodes.otio_to_fountain import OTIOToFountain
+
+    wanted = {
+        ScriptToTimeline: ("otio", "otio_path", "output_directory"),
+        SaveOTIO: ("otio_path", "output_directory"),
+        OTIOToFountain: ("fountain_file",),
+    }
+    for node_class, names in wanted.items():
+        node = node_class(name="n")
+        for name in names:
+            assert node.get_parameter_by_name(name).allow_variable_substitution is False, (node_class.__name__, name)

@@ -46,6 +46,7 @@ class SaveOTIO(SuccessFailureNode):
                 name="otio_path",
                 placeholder_text="The saved .otio path will appear here",
                 tooltip="Where the .otio file was saved.",
+                allow_variable_substitution=False,
                 allowed_modes={ParameterMode.OUTPUT},
             )
         )
@@ -54,6 +55,7 @@ class SaveOTIO(SuccessFailureNode):
                 name="output_directory",
                 placeholder_text="The output folder will appear here",
                 tooltip="The folder the file and media were saved in.",
+                allow_variable_substitution=False,
                 allowed_modes={ParameterMode.OUTPUT},
             )
         )
