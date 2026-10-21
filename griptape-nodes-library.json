@@ -99,6 +99,21 @@
             }
         },
         {
+            "class_name": "TimelineToBlender",
+            "file_path": "otio_nodes/timeline_to_blender.py",
+            "metadata": {
+                "category": "timeline",
+                "description": "Make a Blender storyboard from a timeline: a scene per shot, the shots laid out in order, and the narration as sound.",
+                "display_name": "Timeline to Blender Storyboard",
+                "declarations": [
+                    {
+                        "type": "lifecycle_stage",
+                        "stage": "BETA"
+                    }
+                ]
+            }
+        },
+        {
             "class_name": "LoadOTIO",
             "file_path": "otio_nodes/load_otio.py",
             "metadata": {

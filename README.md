@@ -10,7 +10,7 @@ The library has its own timeline format: a plain list of tracks and clips, with 
 
 - **In:** build a timeline from a script (Script to Timeline) or load one from an `.otio` file (Load OTIO).
 - **Edit:** the Timeline Editor changes the timeline.
-- **Out:** write it as an `.otio` file (Save OTIO), render it to a movie (Timeline to Movie) or turn it back into a script (Timeline to Fountain).
+- **Out:** write it as an `.otio` file (Save OTIO), render it to a movie (Timeline to Movie), make a Blender storyboard from it (Timeline to Blender Storyboard) or turn it back into a script (Timeline to Fountain).
 
 OpenTimelineIO (OTIO) is the file format, used to share a timeline with other tools such as Resolve or Hiero. A file only appears at the ends. Between nodes the timeline is passed as it is, because OTIO text is more than twice the size of the same timeline.
 
@@ -24,6 +24,7 @@ OpenTimelineIO (OTIO) is the file format, used to share a timeline with other to
 | **Timeline Editor** | a timeline, or an `.otio` file (choose with `source`) | the edited timeline. Also saves it as a file when it has somewhere to put it |
 | **Save OTIO** | a timeline | an `.otio` file in a folder, with placeholder media |
 | **Timeline to Movie** | a timeline | an H.264 `.mp4` with sound. Video clips are laid on black at their place, every clip with sound is mixed in, spoken lines are drawn as subtitles, and placeholder slates show as title cards. Editor mute buttons are not saved, so they do not apply |
+| **Timeline to Blender Storyboard** | a timeline, or an `.otio` file (choose with `source`) | a Blender `.blend` made from Blender's Storyboarding template, to start drawing boards. Each shot becomes its own scene with a camera and a Grease Pencil object, named like the shot and as long as the shot. The Edit scene lays them out as scene strips. Audio clips linked to real footage become sound strips with their in-points. Needs Blender 5.0 or newer, found automatically or chosen in `blender`. The save rules add a version number, so it never replaces an earlier storyboard |
 | **Timeline to Fountain** | a timeline | the script as Fountain text, and optionally a `.fountain` file |
 
 ```

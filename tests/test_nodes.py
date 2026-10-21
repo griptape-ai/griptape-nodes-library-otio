@@ -1113,12 +1113,14 @@ def test_timeline_to_movie_needs_a_timeline_and_renders_one(tmp_path: Path, monk
 
 def test_outputs_that_hold_project_macros_are_not_scanned_for_variables():
     """A {outputs}/... value in a parameter that allows substitution marks the node dirty before every run."""
+    from otio_nodes.timeline_to_blender import TimelineToBlender
     from otio_nodes.timeline_to_fountain import TimelineToFountain
 
     wanted = {
         ScriptToTimeline: ("timeline", "otio_path", "output_directory"),
         SaveOTIO: ("otio_path", "output_directory"),
         TimelineToFountain: ("fountain_file",),
+        TimelineToBlender: ("blend_path",),
     }
     for node_class, names in wanted.items():
         node = node_class(name="n")
@@ -1160,6 +1162,7 @@ def test_a_relative_output_file_is_saved_through_the_project_not_the_working_fol
 
 def test_result_details_may_hold_a_project_macro_without_unresolving_the_node():
     from otio_nodes.timeline_editor import TimelineEditor
+    from otio_nodes.timeline_to_blender import TimelineToBlender
     from otio_nodes.timeline_to_movie import TimelineToMovie
 
     for node_class in (
@@ -1169,6 +1172,7 @@ def test_result_details_may_hold_a_project_macro_without_unresolving_the_node():
         SaveOTIO,
         TimelineToFountain,
         TimelineToMovie,
+        TimelineToBlender,
         TimelineEditor,
     ):
         details = node_class(name="n").get_parameter_by_name("result_details")

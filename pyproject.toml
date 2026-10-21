@@ -54,6 +54,6 @@ line-ending = "auto"
 venvPath = "."
 venv = ".venv"
 include = ["."]
-exclude = [".venv", "**/node_modules", "**/__pycache__", "**/.*", "templates", "preconfigured_workflows"]
+exclude = [".venv", "**/node_modules", "**/__pycache__", "**/.*", "templates", "preconfigured_workflows", "otio_nodes/blender"]
 pythonVersion = "3.12"
 reportIncompatibleMethodOverride = false
