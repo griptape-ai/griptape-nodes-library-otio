@@ -21,12 +21,16 @@ from pathlib import Path
 from typing import Any
 
 from otio_nodes.media import url_to_path
-from otio_nodes.model import AUDIO_ROLE, DIALOGUE_ROLE, MEDIA_KEY_PREFIX, SHOTS_ROLE, total_frames
+from otio_nodes.model import AUDIO_ROLE, DIALOGUE_ROLE, MEDIA_KEY_PREFIX, SHOTS_ROLE
 
 BLENDER_SCRIPT = Path(__file__).parent / "blender" / "make_storyboard.py"
 MAC_BLENDER = "/Applications/Blender.app/Contents/MacOS/Blender"
 SUCCESS_MARKER = "STORYBOARD_OK"
 RUN_TIMEOUT_SECONDS = 600
+
+
+def _enabled(clip: dict[str, Any]) -> bool:
+    return clip.get("enabled", True) is not False
 
 
 def storyboard_job(model: dict[str, Any], resolve: Callable[[str], Path] = url_to_path) -> dict[str, Any]:
@@ -36,13 +40,13 @@ def storyboard_job(model: dict[str, Any], resolve: Callable[[str], Path] = url_t
     file cannot be found is left out and named in `warnings`.
     """
     tracks = model["tracks"]
-    shot_clips = [clip for track in tracks if track["role"] == SHOTS_ROLE for clip in track["clips"]]
+    shot_clips = [clip for track in tracks if track["role"] == SHOTS_ROLE for clip in track["clips"] if _enabled(clip)]
     if not shot_clips:
         msg = "The timeline has no shots to turn into scenes."
         raise ValueError(msg)
     shot_clips.sort(key=lambda clip: clip["start"])
     dialogue = sorted(
-        (clip for track in tracks if track["role"] == DIALOGUE_ROLE for clip in track["clips"]),
+        (clip for track in tracks if track["role"] == DIALOGUE_ROLE for clip in track["clips"] if _enabled(clip)),
         key=lambda clip: clip["start"],
     )
 
@@ -70,7 +74,9 @@ def storyboard_job(model: dict[str, Any], resolve: Callable[[str], Path] = url_t
     for track in tracks:
         if track["kind"] != "audio":
             continue
-        for clip in track["clips"]:
+        for clip in sorted(track["clips"], key=lambda c: c["start"]):
+            if not _enabled(clip):
+                continue
             media = clip.get("media")
             if not media or str(media.get("key", "")).startswith(MEDIA_KEY_PREFIX):
                 continue  # no footage, or this library's own silent placeholder
@@ -97,29 +103,41 @@ def storyboard_job(model: dict[str, Any], resolve: Callable[[str], Path] = url_t
     return {
         "title": model.get("title") or "",
         "rate": float(model["rate"]),
-        "frames": total_frames(model),
+        "frames": max(
+            (c["start"] + c["duration"] for track in tracks for c in track["clips"] if _enabled(c)), default=0
+        ),
         "shots": shots,
         "audio": audio,
         "warnings": warnings,
     }
 
 
+def _blender_program(text: str) -> Path | None:
+    path = Path(text).expanduser()
+    if path.suffix == ".app":
+        path = path / "Contents" / "MacOS" / "Blender"
+    return path if path.is_file() else None
+
+
 def find_blender(setting: str = "") -> str:
-    """The Blender executable: the path given, else $BLENDER_PATH, else `blender` on PATH, else the macOS default."""
-    candidates = [setting, os.environ.get("BLENDER_PATH", ""), shutil.which("blender") or "", MAC_BLENDER]
-    for candidate in candidates:
-        text = (candidate or "").strip()
-        if not text:
-            continue
-        path = Path(text).expanduser()
-        if path.suffix == ".app":
-            path = path / "Contents" / "MacOS" / "Blender"
-        if path.is_file():
-            return str(path)
-    tried = next((c for c in candidates[:1] if c.strip()), "")
+    """The Blender executable. A path that was set is used or refused, never replaced by another Blender.
+
+    With no path set, the search is $BLENDER_PATH, then `blender` on PATH, then the macOS default.
+    """
+    chosen = (setting or "").strip()
+    if chosen:
+        program = _blender_program(chosen)
+        if program is None:
+            msg = f"Blender was not found at {chosen}. Choose the Blender program, or clear 'Blender' to find it automatically."
+            raise FileNotFoundError(msg)
+        return str(program)
+    for candidate in (os.environ.get("BLENDER_PATH", ""), shutil.which("blender") or "", MAC_BLENDER):
+        program = _blender_program(candidate.strip()) if candidate.strip() else None
+        if program is not None:
+            return str(program)
     msg = (
-        f"Blender was not found{f' at {tried}' if tried else ''}. Set 'Blender' to the Blender program "
-        "(on a Mac, /Applications/Blender.app), or set the BLENDER_PATH environment variable."
+        "Blender was not found. Set 'Blender' to the Blender program (on a Mac, /Applications/Blender.app), "
+        "or set the BLENDER_PATH environment variable."
     )
     raise FileNotFoundError(msg)
 

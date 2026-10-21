@@ -64,6 +64,38 @@ def test_the_job_has_the_shots_in_order_with_their_lines():
     assert job["frames"] == 150 and job["rate"] == RATE and job["audio"] == []
 
 
+def test_clips_switched_off_in_the_editor_are_left_out(tmp_path: Path):
+    real = tmp_path / "narration.wav"
+    real.write_bytes(b"x")
+    linked = {"url": str(real), "start": 0, "duration": None, "key": ""}
+    model = timeline(
+        shots=[clip("on", 0, 50), clip("off", 50, 500)],
+        dialogue=[
+            clip("l1", 5, 10, description="Kept.", meta={"character": "FINN"}),
+            clip("l2", 55, 10, description="Dropped.", meta={"character": "FINN"}),
+        ],
+        audio=[clip("a1", 0, 20, media=linked), clip("a2", 600, 20, media=linked)],
+    )
+    for track in model["tracks"]:
+        for c in track["clips"]:
+            if c["name"] in ("off", "l2", "a2"):
+                c["enabled"] = False
+    job = storyboard_job(model)
+    assert [s["name"] for s in job["shots"]] == ["on"]
+    assert job["shots"][0]["dialogue"] == ["FINN: Kept."]
+    assert [a["name"] for a in job["audio"]] == ["a1"]
+    assert job["frames"] == 50
+
+
+def test_audio_clips_are_sorted_by_start_within_a_track(tmp_path: Path):
+    real = tmp_path / "narration.wav"
+    real.write_bytes(b"x")
+    linked = {"url": str(real), "start": 0, "duration": None, "key": ""}
+    model = two_shots()
+    model["tracks"][2]["clips"] = [clip("late", 60, 10, media=linked), clip("early", 0, 10, media=linked)]
+    assert [a["name"] for a in storyboard_job(model)["audio"]] == ["early", "late"]
+
+
 def test_a_timeline_without_shots_is_refused():
     with pytest.raises(ValueError, match="no shots"):
         storyboard_job(timeline())
@@ -103,6 +135,15 @@ def test_blender_is_found_from_the_setting_an_app_bundle_or_the_environment(tmp_
     monkeypatch.delenv("BLENDER_PATH")
     with pytest.raises(FileNotFoundError, match="Blender was not found"):
         find_blender("")
+
+
+def test_a_blender_that_was_chosen_is_used_or_refused_not_swapped_for_another(tmp_path: Path, monkeypatch):
+    other = tmp_path / "other_blender"
+    other.write_text("")
+    monkeypatch.setenv("BLENDER_PATH", str(other))
+    monkeypatch.setattr(storyboard.shutil, "which", lambda _name: str(other))
+    with pytest.raises(FileNotFoundError, match="not found at /nowhere/Blender"):
+        find_blender("/nowhere/Blender")
 
 
 def fake_blender(folder: Path, body: str) -> str:
@@ -218,7 +259,8 @@ print('SHOT', bpy.data.scenes['002 Close Up'].frame_end, bpy.data.scenes['002 Cl
 
 
 @pytest.mark.skipif(BLENDER is None, reason="Blender is not installed here")
-def test_blender_makes_the_storyboard(tmp_path: Path):
+@pytest.mark.parametrize("rate", [24.0, 30.0])
+def test_blender_makes_the_storyboard(tmp_path: Path, rate: float):
     assert BLENDER is not None
     narration = tmp_path / "narration.wav"
     subprocess.run(
@@ -226,9 +268,11 @@ def test_blender_makes_the_storyboard(tmp_path: Path):
         check=True,
     )
     model = two_shots()
+    model["rate"] = rate
+    # Out of order on purpose: an earlier clip listed after a later one must stay on its track's channel.
     model["tracks"][2]["clips"] = [
-        clip("a1", 0, 24, media={"url": str(narration), "start": 0, "duration": None, "key": ""}),
         clip("a2", 60, 48, media={"url": str(narration), "start": 100, "duration": None, "key": ""}),
+        clip("a1", 0, 24, media={"url": str(narration), "start": 0, "duration": None, "key": ""}),
     ]
     output = tmp_path / "board.blend"
     job = make_storyboard(model, output, BLENDER)
@@ -249,7 +293,9 @@ def test_blender_makes_the_storyboard(tmp_path: Path):
     assert lines["RANGE"].strip() == "1 150"
     assert "('SCENE', 1, '001 Shot', 1, 50, 0)" in lines["STRIPS"]
     assert "('SCENE', 1, '002 Close Up', 51, 100, 0)" in lines["STRIPS"]
+    # Lengths and in-points are in frames at the timeline's rate, whatever the rate is.
     assert "('SOUND', 2, 'a2', 61, 48, 100)" in lines["STRIPS"]
+    assert "('SOUND', 2, 'a1', 1, 24, 0)" in lines["STRIPS"]
     assert lines["SHOT"].startswith("100 JONH: Goodbye.")
 
 

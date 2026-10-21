@@ -57,6 +57,9 @@ def main() -> None:
     rate = float(job["rate"])
     window = bpy.context.window
 
+    # The rate is set first. Changing a scene's fps afterwards makes Blender rescale the sound strips already in it.
+    set_rate(edit, rate)
+
     # The template's example shots go. The blueprint scene stays, so the template's own way of adding a shot still works.
     window.scene = edit
     sequence_editor = edit.sequence_editor
@@ -100,7 +103,6 @@ def main() -> None:
 
     edit.frame_start = 1
     edit.frame_end = max(1, int(job["frames"]))
-    set_rate(edit, rate)
     window.scene = edit
     bpy.ops.wm.save_as_mainfile(filepath=out_file, relative_remap=False)
     print(f"STORYBOARD_OK shots={shots} audio={audio} frames={job['frames']}")
