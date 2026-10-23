@@ -19,7 +19,7 @@ OpenTimelineIO (OTIO) is the file format, used to share a timeline with other to
 | Node | Takes | Gives |
 |---|---|---|
 | **Load Fountain Script** | a `.fountain` file or typed text (choose with `source`) | the parsed script, the title, a summary |
-| **Script to Timeline** | the parsed script | a timeline, the runtime, a summary. Also saves an `.otio` and its media unless `save_otio` is off |
+| **Script to Timeline** | the parsed script, or Fountain text (connected to `script`, or typed into it) | a timeline, the runtime, a summary. Also saves an `.otio` and its media unless `save_otio` is off |
 | **Load OTIO** | an `.otio` file | a timeline and a summary of what was in it |
 | **Timeline Editor** | a timeline, or an `.otio` file (choose with `source`) | the edited timeline. Also saves it as a file when it has somewhere to put it |
 | **Save OTIO** | a timeline | an `.otio` file in a folder, with placeholder media |
@@ -32,6 +32,8 @@ Load Fountain Script ──► Script to Timeline ──timeline──► Timeli
 Load OTIO ───────────────────────────────timeline──┘                          └────► Save OTIO
                                          Timeline Editor ──edited──► Timeline to Fountain ──fountain──► Load Fountain Script
 ```
+
+Script to Timeline also takes Fountain text directly, from a text node, an agent, or typed into its `script` box, so Load Fountain Script is only needed for a file picker, the title or the summary. The one `script` parameter looks at what arrives: a parsed script is used as it is, and text is read as Fountain.
 
 The `timeline` outputs are not saved with the workflow. They are made again each time a node runs. The edits themselves are kept in the Timeline Editor.
 

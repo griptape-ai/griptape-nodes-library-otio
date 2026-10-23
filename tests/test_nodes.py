@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -7,6 +8,7 @@ from griptape_nodes.exe_types.core_types import NodeError
 from otio_nodes.fountain import parse
 from otio_nodes.load_fountain_script import LoadFountainScript
 from otio_nodes.load_otio import LoadOTIO
+from otio_nodes.node_helpers import as_script
 from otio_nodes.otio_io import from_json, to_json
 from otio_nodes.save_otio import SaveOTIO
 from otio_nodes.script_to_timeline import ScriptToTimeline
@@ -180,7 +182,6 @@ def test_data_parameters_hide_their_data_and_text_outputs_are_not_saved():
 
     hidden_cases = [
         (LoadFountainScript(name="a"), "script"),
-        (ScriptToTimeline(name="b"), "script"),
         (TimelineToFountain(name="k"), "timeline"),
         (ScriptToTimeline(name="c"), "timeline"),
         (SaveOTIO(name="d"), "timeline"),
@@ -207,6 +208,46 @@ def test_build_validation():
     node = ScriptToTimeline(name="build")
     errors = node.validate_before_node_run()
     assert errors and "no script to build from" in str(errors[0])
+
+
+def test_script_to_timeline_accepts_fountain_text_on_script():
+    node = ScriptToTimeline(name="build")
+    node.set_parameter_value("save_otio", False)
+    node.set_parameter_value("script", TEXT)
+    assert node.validate_before_node_run() is None
+    run(node)
+    assert node.parameter_output_values["timeline"] == built()
+
+
+def test_script_to_timeline_keeps_a_parsed_script_as_a_dict_and_text_as_text():
+    # One parameter takes both. ParameterString would turn the dict into its repr and ParameterDict would break the text.
+    node = ScriptToTimeline(name="build")
+    parameter = node.get_parameter_by_name("script")
+    assert parameter is not None and "str" in parameter.input_types and "dict" in parameter.input_types
+    parsed = loaded()
+    node.set_parameter_value("script", parsed)
+    assert node.get_parameter_value("script") == parsed
+    node.set_parameter_value("script", TEXT)
+    assert node.get_parameter_value("script") == TEXT
+    assert node.get_parameter_by_name("script_text") is None
+
+
+def test_script_to_timeline_text_without_script_content_is_rejected():
+    node = ScriptToTimeline(name="build")
+    node.set_parameter_value("script", "   \n\n")
+    errors = node.validate_before_node_run()
+    assert errors and "no script to build from" in str(errors[0])
+
+
+def test_as_script():
+    parsed = loaded()
+    assert as_script(parsed) is parsed
+    assert as_script(TEXT) == parsed
+    assert as_script(json.dumps(parsed)) == parsed
+    assert as_script({"tracks": []}) is None
+    assert as_script("") is None
+    assert as_script(None) is None
+    assert as_script("   \n") is None
 
 
 def test_build_without_shots_fails():

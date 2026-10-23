@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
+from otio_nodes.fountain import parse
 from otio_nodes.media import DEFAULT_HANDLE_SECONDS, Encoder, ensure_media
 from otio_nodes.model import total_frames, validate_model
 from otio_nodes.otio_io import from_json, to_json
@@ -20,6 +22,28 @@ def as_timeline(value: Any) -> dict[str, Any] | None:
         return value if value.get("tracks") is not None else None
     text = str(value or "").strip()
     return from_json(text) if text else None
+
+
+def as_script(value: Any) -> dict[str, Any] | None:
+    """The parsed script from a node's value: the dict itself, or Fountain text typed, pasted or connected in.
+
+    A dict is the output of Load Fountain Script and is used as it is. Text is parsed the way that node parses it. JSON
+    text of a parsed script is accepted too. None when there is no script, or when the text has no script content.
+    """
+    if isinstance(value, dict):
+        return value if "elements" in value and "scenes" in value else None
+    text = str(value or "").strip()
+    if not text:
+        return None
+    if text.startswith("{"):
+        try:
+            data = json.loads(text)
+        except ValueError:
+            data = None
+        if isinstance(data, dict):
+            return as_script(data)
+    parsed = parse(text)
+    return parsed if parsed["elements"] else None
 
 
 # What the editor adds to the timeline for its own use. It is not part of the timeline another node should receive.
