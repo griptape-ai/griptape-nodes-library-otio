@@ -7,13 +7,12 @@ from typing import Any, NamedTuple
 from griptape_nodes.exe_types.core_types import NodeError, Parameter, ParameterGroup, ParameterMode
 from griptape_nodes.exe_types.node_types import AsyncResult, SuccessFailureNode
 from griptape_nodes.exe_types.param_types.parameter_bool import ParameterBool
-from griptape_nodes.exe_types.param_types.parameter_dict import ParameterDict
 from griptape_nodes.exe_types.param_types.parameter_float import ParameterFloat
 from griptape_nodes.exe_types.param_types.parameter_string import ParameterString
 
 from otio_nodes.breakdown import DEFAULT_SHOT_CUES, BreakdownSettings, breakdown
 from otio_nodes.model import build_model, total_frames
-from otio_nodes.node_helpers import parse_cue_lines, save_timeline, timeline_summary
+from otio_nodes.node_helpers import as_script, parse_cue_lines, save_timeline, timeline_summary
 from otio_nodes.node_params import (
     create_output_parameters,
     create_status_parameters,
@@ -84,13 +83,22 @@ class ScriptToTimeline(SuccessFailureNode):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._folder: OutputDirectory | None = None
+        # One parameter for every way in: a parsed script from Load Fountain Script (a dict), Fountain text from another
+        # node, or text typed here. It is a plain Parameter. ParameterDict would turn text into a dict, and
+        # ParameterString would turn a dict into text, and either would spoil the script. as_script() reads what arrives.
         self.add_parameter(
-            ParameterDict(
+            Parameter(
                 name="script",
-                default_value=None,
-                allowed_modes={ParameterMode.INPUT},
-                tooltip="The parsed script from Load Fountain Script.",
-                hide_property=True,
+                type="str",
+                input_types=["str", "dict"],
+                default_value="",
+                allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
+                tooltip=(
+                    "The script to build from. Connect the parsed script from Load Fountain Script, or Fountain text "
+                    "from another node, or type or paste Fountain text here."
+                ),
+                ui_options={"multiline": True, "placeholder_text": "Paste Fountain text here, or connect a script."},
+                allow_variable_substitution=False,
             )
         )
         defaults = BreakdownSettings()
@@ -185,12 +193,18 @@ class ScriptToTimeline(SuccessFailureNode):
 
     def validate_before_node_run(self) -> list[Exception] | None:
         exceptions = list(super().validate_before_node_run() or [])
-        script = self.get_parameter_value("script")
-        if not isinstance(script, dict) or "elements" not in script or "scenes" not in script:
+        if self._script() is None:
             exceptions.append(
-                NodeError("There is no script to build from. Connect 'Script' from Load Fountain Script.")
+                NodeError(
+                    "There is no script to build from. Connect a script from Load Fountain Script, or Fountain text, "
+                    "or paste Fountain text into 'Script'."
+                )
             )
         return exceptions or None
+
+    def _script(self) -> dict[str, Any] | None:
+        """The script to build from, whether it arrived as a parsed script or as Fountain text."""
+        return as_script(self.get_parameter_value("script"))
 
     def process(self) -> AsyncResult[None]:
         self._clear_execution_status()
@@ -219,7 +233,10 @@ class ScriptToTimeline(SuccessFailureNode):
         return settings
 
     def _build(self) -> None:
-        script = self.get_parameter_value("script")
+        script = self._script()
+        if script is None:
+            msg = "There is no script to build from. Connect a script or paste Fountain text into 'Script'."
+            raise NodeError(msg)
         broken_down = breakdown(script, self._settings())
         if not broken_down["shots"]:
             msg = "The script has no action or dialogue to make shots from."
