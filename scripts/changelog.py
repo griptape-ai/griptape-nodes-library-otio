@@ -356,7 +356,8 @@ def roll(
     files in `changelog.d` or added to the section by hand.
 
     The rolled version's link compares against whatever tag the Unreleased link pointed at, and the
-    Unreleased link moves on to compare the rolled version to HEAD.
+    Unreleased link moves on to compare the rolled version to HEAD. Both name the `v{version}` tag,
+    which `make version/commit` creates on the commit holding the roll.
     """
     lines = _Lines(source)
 

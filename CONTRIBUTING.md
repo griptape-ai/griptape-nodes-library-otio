@@ -87,9 +87,9 @@ make version/set v=1.2.3
 
 1. Merge your changes to `main`.
 
-2. Run **Actions > Version Bump (Patch)** or **Actions > Version Bump (Minor)** on `main`. This increments the version in the library JSON, folds the `changelog.d/` entries into a `CHANGELOG.md` section for the new version and deletes them, and commits the change. A bump stops first if `CHANGELOG.md` or `changelog.d/` holds uncommitted changes, since the roll would overwrite them.
+2. Run **Actions > Version Bump (Patch)** or **Actions > Version Bump (Minor)** on `main`. This increments the version in the library JSON, folds the `changelog.d/` entries into a `CHANGELOG.md` section for the new version and deletes them, commits the change, and tags the commit with the new version (e.g. `v1.2.3`). The tag is what the new section's compare link points at. A bump stops first if `CHANGELOG.md` or `changelog.d/` holds uncommitted changes, since the roll would overwrite them.
 
-   Or bump locally and push:
+   Or bump locally and push with `git push --atomic --follow-tags`, so the tag goes with the commit or not at all:
 
    ```bash
    make version/patch   # 1.2.3 → 1.2.4
@@ -97,7 +97,7 @@ make version/set v=1.2.3
    make version/major   # 1.2.3 → 2.0.0
    ```
 
-3. Run **Actions > Version Publish** on `main`. This creates and pushes the version tag (e.g. `v1.2.3`), updates the `stable` tag, and creates a GitHub release with auto-generated release notes.
+3. Run **Actions > Version Publish** on `main`. This pushes the version tag (creating it if the bump didn't), points the `stable` tag at it, and creates a GitHub release with auto-generated release notes.
 
 ### Patch Release
 

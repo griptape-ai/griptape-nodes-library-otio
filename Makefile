@@ -54,10 +54,13 @@ version/major: changelog/assert-committed ## Bump major version.
 	echo "Bumped to $$NEW_VERSION"
 	@$(MAKE) --no-print-directory version/commit
 
+# The roll links the new section to compare up to the version's tag, so the bump commit is tagged
+# here rather than at publish: a version bumped twice before a publish would otherwise never get a tag.
 .PHONY: version/commit
-version/commit: ## Roll the changelog into the version, then commit both.
+version/commit: ## Roll the changelog into the version, commit both, and tag the commit.
 	@uv run --no-project python scripts/changelog.py roll $$($(MAKE) --no-print-directory version/get) --allow-empty
 	@git commit -m "chore: bump v$$($(MAKE) --no-print-directory version/get)" -- $(LIBRARY_JSON) $(PYPROJECT) CHANGELOG.md changelog.d
+	@VERSION=$$($(MAKE) --no-print-directory version/get); git tag -a "v$$VERSION" -m "v$$VERSION"
 
 # The roll overwrites CHANGELOG.md and deletes the entry files, and the bump commits whatever it left,
 # so an entry still being written would ship half-finished or be lost. The library JSON and pyproject.toml
@@ -71,12 +74,17 @@ changelog/assert-committed:
 			echo "Commit or stash them first. If a version bump stopped partway, undo it with:"; \
 			echo "  git restore $(LIBRARY_JSON) $(PYPROJECT) CHANGELOG.md changelog.d"; exit 1; }
 
+# The bump normally tagged the version already. Tag HEAD only for a version bumped without one, and refuse
+# a tag left on a commit this branch doesn't contain, such as a bump commit later rebased or squashed.
 .PHONY: version/publish
-version/publish: ## Create and push git tags.
+version/publish: ## Push the version tag and point stable at it.
 	@git fetch --tags --force
-	@VERSION=$$($(MAKE) --no-print-directory version/get); \
-	git tag "v$$VERSION"; \
-	git tag stable -f; \
+	@set -e; \
+	VERSION=$$($(MAKE) --no-print-directory version/get); \
+	git rev-parse -q --verify "refs/tags/v$$VERSION" >/dev/null || git tag "v$$VERSION"; \
+	git merge-base --is-ancestor "v$$VERSION^{commit}" HEAD \
+		|| { echo "Tag v$$VERSION points at a commit that is not on this branch. Move it to the bump commit and publish again."; exit 1; }; \
+	git tag stable -f "v$$VERSION^{commit}"; \
 	git push origin "v$$VERSION"; \
 	git push -f origin stable
 
