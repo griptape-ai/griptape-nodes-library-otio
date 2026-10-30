@@ -74,6 +74,22 @@ changelog/assert-committed:
 			echo "Commit or stash them first. If a version bump stopped partway, undo it with:"; \
 			echo "  git restore $(LIBRARY_JSON) $(PYPROJECT) CHANGELOG.md changelog.d"; exit 1; }
 
+# A patch bumped on a release branch rolls cherry-picked entry files there only. On main those files are
+# still waiting, so the next bump would list them again, and main's changelog would skip the patch. This
+# copies the patch's section from its tag and deletes the entry files its bump commit deleted.
+.PHONY: changelog/backport
+changelog/backport: changelog/assert-committed ## Copy a release branch's version section to this branch. Usage: make changelog/backport v=1.2.4
+	@if [[ -z "$(v)" ]]; then echo "changelog/backport requires v=<version>" >&2; exit 1; fi
+	@git fetch --tags --force
+	@set -eo pipefail; \
+	released=$$(mktemp); \
+	trap 'rm -f "$$released"' EXIT; \
+	git show "v$(v):CHANGELOG.md" > "$$released"; \
+	uv run --no-project python scripts/changelog.py backport "$(v)" --from "$$released"; \
+	git diff --name-only --diff-filter=D "v$(v)^" "v$(v)" -- changelog.d \
+		| xargs -r git rm -q --ignore-unmatch --; \
+	git commit -m "chore: changelog for v$(v) from its release branch" -- CHANGELOG.md changelog.d
+
 # The bump normally tagged the version already. Tag HEAD only for a version bumped without one, and refuse
 # a tag left on a commit this branch doesn't contain, such as a bump commit later rebased or squashed.
 .PHONY: version/publish

@@ -1,4 +1,4 @@
-"""Check, roll, render, and extract sections of CHANGELOG.md, which follows Keep a Changelog 2.0.0.
+"""Check, roll, render, extract, and backport sections of CHANGELOG.md, which follows Keep a Changelog 2.0.0.
 
 Usage:
     python scripts/changelog.py [--path CHANGELOG.md] [--fragments changelog.d] COMMAND
@@ -7,6 +7,7 @@ Usage:
     render
     roll VERSION [--date YYYY-MM-DD] [--allow-empty]
     extract VERSION
+    backport VERSION --from RELEASED_CHANGELOG
 
 `--path` and `--fragments` belong to the parser, so they come before the command.
 
@@ -15,7 +16,8 @@ touch the same line of the same file. `render` shows what they add up to. `roll`
 dated version section at release time and deletes them.
 
 `check` validates structure only. Whether a change needs an entry, and whether an entry is worth
-reading, stays a human call. `extract` prints one version's section.
+reading, stays a human call. `extract` prints one version's section. `backport` copies a version's
+section, and its link, from a changelog rolled on another branch, such as a patch release branch.
 
 Standard library only, so CI can run it without installing the project.
 """
@@ -422,6 +424,68 @@ def extract(source: str, version: str) -> str:
     return _section_body(lines, heading_index)
 
 
+def backport(source: str, released: str, version: str) -> str:
+    """Copy `version`'s section and link definition from `released` into `source`, in version order.
+
+    A patch rolled on a release branch never reaches `main`'s changelog otherwise, and the entry files
+    it rolled are still on `main` to be rolled a second time.
+    """
+    released_lines = _Lines(released)
+    released_heading = released_lines.version_heading_index(version)
+    if released_heading == -1:
+        msg = f"Attempted to backport {version}. Failed because the released changelog has no section for {version}."
+        raise ChangelogError(msg)
+
+    definition = re.compile(rf"^\[{re.escape(version)}\]: ")
+    released_definition = released_lines.find(definition)
+    if released_definition == -1:
+        msg = f"Attempted to backport {version}. Failed because the released changelog has no link definition for {version}."
+        raise ChangelogError(msg)
+
+    lines = _Lines(source)
+    existing = lines.version_heading_index(version)
+    if existing != -1:
+        msg = (
+            f"Attempted to backport {version}. Failed because line {existing + 1} already has a section for {version}."
+        )
+        raise ChangelogError(msg)
+
+    section = released_lines.lines[released_heading : released_lines.section_end(released_heading)]
+    while section and not section[-1].strip():
+        section.pop()
+
+    key = _version_key(version)
+    older_heading = -1
+    older_definition = -1
+    last_definition = -1
+    for index, line in enumerate(lines.lines):
+        if lines.fenced[index]:
+            continue
+        heading = VERSION_HEADING.match(line)
+        if heading and older_heading == -1 and _version_key(heading.group(1)) < key:
+            older_heading = index
+        link = LINK_DEFINITION.match(line)
+        if link:
+            last_definition = index
+            if older_definition == -1 and VERSION.match(link.group(1)) and _version_key(link.group(1)) < key:
+                older_definition = index
+    if last_definition == -1:
+        msg = (
+            f"Attempted to backport {version}. Failed because the changelog has no link definitions to place it among."
+        )
+        raise ChangelogError(msg)
+
+    merged = list(lines.lines)
+    # Insert the definition first: it sits below the section, so inserting it second would need a
+    # shifted index.
+    definition_at = older_definition if older_definition != -1 else last_definition + 1
+    merged[definition_at:definition_at] = [released_lines.lines[released_definition]]
+    # With no older version, the section goes last, just above the link definitions.
+    section_at = older_heading if older_heading != -1 else lines.find(LINK_DEFINITION)
+    merged[section_at:section_at] = [*section, ""]
+    return "\n".join(merged) + "\n"
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run one command against the changelog and return the process exit code."""
     args = _parse_args(argv)
@@ -439,6 +503,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_render(source, args.fragments)
     if args.command == "roll":
         return _run_roll(path, source, args.fragments, args.version, args.date, allow_empty=args.allow_empty)
+    if args.command == "backport":
+        return _run_backport(path, source, args.released, args.version)
     return _run_extract(source, args.version)
 
 
@@ -529,6 +595,31 @@ def _run_roll(  # noqa: PLR0913
     return 0
 
 
+def _run_backport(path: Path, source: str, released_path: Path, version: str) -> int:
+    try:
+        released = released_path.read_text(encoding="utf-8")
+    except OSError as error:
+        sys.stderr.write(f"Attempted to read {released_path}. Failed due to {error.strerror}.\n")
+        return 1
+
+    try:
+        merged = backport(source, released, version)
+    except ChangelogError as error:
+        sys.stderr.write(f"{error}\n")
+        return 1
+
+    problems = check(merged)
+    if problems:
+        sys.stderr.write(f"The backport would leave {path} invalid, so nothing was written:\n")
+        for problem in problems:
+            sys.stderr.write(f"  line {problem.line}: {problem.message}\n")
+        return 1
+
+    path.write_text(merged, encoding="utf-8")
+    sys.stdout.write(f"Copied [{version}] into {path}\n")
+    return 0
+
+
 def _run_extract(source: str, version: str) -> int:
     try:
         body = extract(source, version)
@@ -560,6 +651,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
 
     extract_parser = commands.add_parser("extract", help="print one version's section")
     extract_parser.add_argument("version", help="release version, e.g. 0.102.0")
+
+    backport_parser = commands.add_parser("backport", help="copy a version's section from another branch's changelog")
+    backport_parser.add_argument("version", help="release version, e.g. 0.101.1")
+    backport_parser.add_argument(
+        "--from", dest="released", type=Path, required=True, help="changelog the version was rolled into"
+    )
 
     args = parser.parse_args(argv)
     # The entries belong to the changelog they fold into. Rehearsing a roll against a copy elsewhere

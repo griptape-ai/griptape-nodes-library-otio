@@ -120,3 +120,11 @@ To release a fix without including all commits on `main`, use a release branch:
 3. Run **Actions > Version Bump (Patch)** and set the branch to `release/v0.50`.
 
 4. Run **Actions > Version Publish** and set the branch to `release/v0.50`.
+
+5. Bring the patch's changelog back to `main`. The bump rolled the cherry-picked `changelog.d/` entries on the release branch only, so on `main` they are still waiting and the next bump would list them again. On a branch off `main`, run:
+
+   ```bash
+   make changelog/backport v=0.50.1
+   ```
+
+   This copies the `## [0.50.1]` section and its link from the `v0.50.1` tag into `CHANGELOG.md`, deletes the entry files that bump rolled, and commits both. Open a PR with it before `main`'s next version bump.

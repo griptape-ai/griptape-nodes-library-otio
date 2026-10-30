@@ -6,6 +6,7 @@ from scripts.changelog import (
     UNRELEASED_COMMENT,
     ChangelogError,
     Fragment,
+    backport,
     check,
     check_fragments,
     check_unreleased_is_empty,
@@ -596,3 +597,64 @@ class TestMain:
         assert exit_code == 0
         assert capsys.readouterr().out == "### Added\n\n- A feature.\n\n### Fixed\n\n- Unreleased fix.\n"
         assert (directory / "added-feature.md").exists()
+
+
+class TestBackport:
+    PATCHED = roll(CHANGELOG.replace("Unreleased fix", "Patched fix"), "0.101.1", "2026-09-20")
+
+    def test_places_the_patch_between_its_neighbours(self) -> None:
+        main_branch = roll(CHANGELOG, "0.102.0", "2026-09-22")
+
+        merged = backport(main_branch, self.PATCHED, "0.101.1")
+
+        assert check(merged) == []
+        headings = [line for line in merged.splitlines() if line.startswith("## ")]
+        assert headings == [
+            "## [Unreleased]",
+            "## [0.102.0] - 2026-09-22",
+            "## [0.101.1] - 2026-09-20",
+            "## [0.101.0] - 2026-09-15",
+        ]
+        assert extract(merged, "0.101.1") == "### Fixed\n\n- Patched fix.\n"
+        assert f"[0.101.1]: {REPO}/compare/v0.101.0...v0.101.1\n[0.101.0]:" in merged
+
+    def test_leaves_unreleased_alone(self) -> None:
+        merged = backport(CHANGELOG, self.PATCHED, "0.101.1")
+
+        assert check(merged) == []
+        assert extract(merged, "0.101.0") == "### Added\n\n- Released feature.\n"
+        assert f"[Unreleased]: {REPO}/compare/v0.101.0...HEAD" in merged
+        assert "- Unreleased fix." in merged
+
+    def test_places_a_version_older_than_all_others_last(self) -> None:
+        released = roll(
+            EMPTY_UNRELEASED.replace("0.101.0", "0.99.0").replace("v0.100.0", "v0.98.0"),
+            "0.99.1",
+            "2026-09-01",
+            allow_empty=True,
+        )
+
+        merged = backport(EMPTY_UNRELEASED, released, "0.99.1")
+
+        assert check(merged) == []
+        assert merged.index("## [0.99.1]") > merged.index("## [0.101.0]")
+        assert merged.rstrip().endswith(f"[0.99.1]: {REPO}/compare/v0.99.0...v0.99.1")
+
+    def test_refuses_a_version_already_present(self) -> None:
+        with pytest.raises(ChangelogError, match=r"already has a section for 0\.101\.0"):
+            backport(CHANGELOG, CHANGELOG, "0.101.0")
+
+    def test_refuses_a_version_the_released_changelog_lacks(self) -> None:
+        with pytest.raises(ChangelogError, match=r"released changelog has no section for 0\.101\.1"):
+            backport(CHANGELOG, CHANGELOG, "0.101.1")
+
+    def test_main_writes_the_file(self, tmp_path: Path) -> None:
+        path = tmp_path / "CHANGELOG.md"
+        path.write_text(CHANGELOG, encoding="utf-8")
+        released = tmp_path / "released.md"
+        released.write_text(self.PATCHED, encoding="utf-8")
+
+        exit_code = main(["--path", str(path), "backport", "0.101.1", "--from", str(released)])
+
+        assert exit_code == 0
+        assert "## [0.101.1] - 2026-09-20" in path.read_text(encoding="utf-8")
