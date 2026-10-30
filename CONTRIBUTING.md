@@ -57,6 +57,16 @@ This is also run automatically as part of `make install/core` and `make install/
 
 The CI workflow runs `make check` on every pull request and push to `main`. PRs must pass all checks before merging.
 
+## Changelog
+
+[`CHANGELOG.md`](CHANGELOG.md) follows [Keep a Changelog 2.0.0](https://keepachangelog.com/en/2.0.0/), with one section per `library_version`.
+
+A PR with a user-facing change does not edit `CHANGELOG.md`. It adds one file to [`changelog.d/`](changelog.d/README.md), named `<type>-<slug>.md` for one of `added`, `changed`, `deprecated`, `removed`, `fixed`, or `security`. The whole file is the bullet, with no heading above it. One entry per file keeps PRs from conflicting. `make changelog` prints the `[Unreleased]` section with every entry file folded in.
+
+Write for the person updating the library: which node changed, what they will notice, and why. Link the GitHub issue on the entry's last line when there is one. Start breaking changes, anything that makes a saved workflow stop working or give a different result, with `**Breaking:**`. Refactors, tests, CI, and docs-only changes get no entry. The full style guide is in [CLAUDE.md](CLAUDE.md#changelog).
+
+`make check/changelog`, part of `make check` and CI, validates the structure of `CHANGELOG.md` and of every entry file. It never requires a PR to add an entry. That call stays with people.
+
 ## Releases
 
 Library versions follow [semantic versioning](https://semver.org/). The version is stored in two places, which the version targets keep in sync: the library JSON file under `metadata.library_version`, and `pyproject.toml` under `project.version`. The library JSON is the source of truth — `make version/get` reads it.
@@ -77,9 +87,9 @@ make version/set v=1.2.3
 
 1. Merge your changes to `main`.
 
-2. Run **Actions > Version Bump (Patch)** or **Actions > Version Bump (Minor)** on `main`. This increments the version in the library JSON and commits the change.
+2. Run **Actions > Version Bump (Patch)** or **Actions > Version Bump (Minor)** on `main`. This increments the version in the library JSON, folds the `changelog.d/` entries into a `CHANGELOG.md` section for the new version and deletes them, commits the change, and tags the commit with the new version (e.g. `v1.2.3`). The tag is what the new section's compare link points at. A bump stops first if `CHANGELOG.md` or `changelog.d/` holds uncommitted changes, since the roll would overwrite them.
 
-   Or bump locally and push:
+   Or bump locally and push with `git push --atomic --follow-tags`, so the tag goes with the commit or not at all:
 
    ```bash
    make version/patch   # 1.2.3 → 1.2.4
@@ -87,7 +97,7 @@ make version/set v=1.2.3
    make version/major   # 1.2.3 → 2.0.0
    ```
 
-3. Run **Actions > Version Publish** on `main`. This creates and pushes the version tag (e.g. `v1.2.3`), updates the `stable` tag, and creates a GitHub release with auto-generated release notes.
+3. Run **Actions > Version Publish** on `main`. This pushes the version tag (creating it if the bump didn't), points the `stable` tag at it, and creates a GitHub release with auto-generated release notes.
 
 ### Patch Release
 
@@ -110,3 +120,11 @@ To release a fix without including all commits on `main`, use a release branch:
 3. Run **Actions > Version Bump (Patch)** and set the branch to `release/v0.50`.
 
 4. Run **Actions > Version Publish** and set the branch to `release/v0.50`.
+
+5. Bring the patch's changelog back to `main`. The bump rolled the cherry-picked `changelog.d/` entries on the release branch only, so on `main` they are still waiting and the next bump would list them again. On a branch off `main`, run:
+
+   ```bash
+   make changelog/backport v=0.50.1
+   ```
+
+   This copies the `## [0.50.1]` section and its link from the `v0.50.1` tag into `CHANGELOG.md`, deletes the entry files that bump rolled, and commits both. Open a PR with it before `main`'s next version bump.

@@ -23,12 +23,12 @@ version/write: ## Write version to the library JSON and pyproject.toml. Usage: m
 	mv $(PYPROJECT).tmp $(PYPROJECT)
 
 .PHONY: version/set
-version/set: ## Set version. Usage: make version/set v=1.2.3
+version/set: changelog/assert-committed ## Set version. Usage: make version/set v=1.2.3
 	@$(MAKE) --no-print-directory version/write v="$(v)"
 	@$(MAKE) --no-print-directory version/commit
 
 .PHONY: version/patch
-version/patch: ## Bump patch version.
+version/patch: changelog/assert-committed ## Bump patch version.
 	@CURRENT=$$($(MAKE) --no-print-directory version/get); \
 	IFS='.' read -r major minor patch <<< "$$CURRENT"; \
 	NEW_VERSION="$${major}.$${minor}.$$((patch + 1))"; \
@@ -37,7 +37,7 @@ version/patch: ## Bump patch version.
 	@$(MAKE) --no-print-directory version/commit
 
 .PHONY: version/minor
-version/minor: ## Bump minor version.
+version/minor: changelog/assert-committed ## Bump minor version.
 	@CURRENT=$$($(MAKE) --no-print-directory version/get); \
 	IFS='.' read -r major minor patch <<< "$$CURRENT"; \
 	NEW_VERSION="$${major}.$$((minor + 1)).0"; \
@@ -46,7 +46,7 @@ version/minor: ## Bump minor version.
 	@$(MAKE) --no-print-directory version/commit
 
 .PHONY: version/major
-version/major: ## Bump major version.
+version/major: changelog/assert-committed ## Bump major version.
 	@CURRENT=$$($(MAKE) --no-print-directory version/get); \
 	IFS='.' read -r major minor patch <<< "$$CURRENT"; \
 	NEW_VERSION="$$((major + 1)).0.0"; \
@@ -54,17 +54,53 @@ version/major: ## Bump major version.
 	echo "Bumped to $$NEW_VERSION"
 	@$(MAKE) --no-print-directory version/commit
 
+# The roll links the new section to compare up to the version's tag, so the bump commit is tagged
+# here rather than at publish: a version bumped twice before a publish would otherwise never get a tag.
 .PHONY: version/commit
-version/commit: ## Commit version.
-	@git add $(LIBRARY_JSON) $(PYPROJECT)
-	@git commit -m "chore: bump v$$($(MAKE) --no-print-directory version/get)"
+version/commit: ## Roll the changelog into the version, commit both, and tag the commit.
+	@uv run --no-project python scripts/changelog.py roll $$($(MAKE) --no-print-directory version/get) --allow-empty
+	@git commit -m "chore: bump v$$($(MAKE) --no-print-directory version/get)" -- $(LIBRARY_JSON) $(PYPROJECT) CHANGELOG.md changelog.d
+	@VERSION=$$($(MAKE) --no-print-directory version/get); git tag -a "v$$VERSION" -m "v$$VERSION"
 
-.PHONY: version/publish
-version/publish: ## Create and push git tags.
+# The roll overwrites CHANGELOG.md and deletes the entry files, and the bump commits whatever it left,
+# so an entry still being written would ship half-finished or be lost. The library JSON and pyproject.toml
+# are covered too: a bump whose roll failed leaves the new version there, and bumping again from it skips
+# a version.
+.PHONY: changelog/assert-committed
+changelog/assert-committed:
+	@git diff --quiet HEAD -- $(LIBRARY_JSON) $(PYPROJECT) CHANGELOG.md changelog.d \
+		&& test -z "$$(git ls-files --others --exclude-standard -- changelog.d)" \
+		|| { echo "$(LIBRARY_JSON), $(PYPROJECT), CHANGELOG.md, or changelog.d holds changes that are not committed."; \
+			echo "Commit or stash them first. If a version bump stopped partway, undo it with:"; \
+			echo "  git restore $(LIBRARY_JSON) $(PYPROJECT) CHANGELOG.md changelog.d"; exit 1; }
+
+# A patch bumped on a release branch rolls cherry-picked entry files there only. On main those files are
+# still waiting, so the next bump would list them again, and main's changelog would skip the patch. This
+# copies the patch's section from its tag and deletes the entry files its bump commit deleted.
+.PHONY: changelog/backport
+changelog/backport: changelog/assert-committed ## Copy a release branch's version section to this branch. Usage: make changelog/backport v=1.2.4
+	@if [[ -z "$(v)" ]]; then echo "changelog/backport requires v=<version>" >&2; exit 1; fi
 	@git fetch --tags --force
-	@VERSION=$$($(MAKE) --no-print-directory version/get); \
-	git tag "v$$VERSION"; \
-	git tag stable -f; \
+	@set -eo pipefail; \
+	released=$$(mktemp); \
+	trap 'rm -f "$$released"' EXIT; \
+	git show "v$(v):CHANGELOG.md" > "$$released"; \
+	uv run --no-project python scripts/changelog.py backport "$(v)" --from "$$released"; \
+	git diff --name-only --diff-filter=D "v$(v)^" "v$(v)" -- changelog.d \
+		| xargs -r git rm -q --ignore-unmatch --; \
+	git commit -m "chore: changelog for v$(v) from its release branch" -- CHANGELOG.md changelog.d
+
+# The bump normally tagged the version already. Tag HEAD only for a version bumped without one, and refuse
+# a tag left on a commit this branch doesn't contain, such as a bump commit later rebased or squashed.
+.PHONY: version/publish
+version/publish: ## Push the version tag and point stable at it.
+	@git fetch --tags --force
+	@set -e; \
+	VERSION=$$($(MAKE) --no-print-directory version/get); \
+	git rev-parse -q --verify "refs/tags/v$$VERSION" >/dev/null || git tag "v$$VERSION"; \
+	git merge-base --is-ancestor "v$$VERSION^{commit}" HEAD \
+		|| { echo "Tag v$$VERSION points at a commit that is not on this branch. Move it to the bump commit and publish again."; exit 1; }; \
+	git tag stable -f "v$$VERSION^{commit}"; \
 	git push origin "v$$VERSION"; \
 	git push -f origin stable
 
@@ -110,7 +146,7 @@ fix: ## Fix project.
 	@$(MAKE) --no-print-directory widget/stamp
 
 .PHONY: check
-check: check/format check/lint check/types check/json check/js check/widget ## Run all checks.
+check: check/format check/lint check/types check/json check/js check/widget check/changelog ## Run all checks.
 
 .PHONY: check/format
 check/format:
@@ -143,6 +179,14 @@ check/json: ## Validate JSON files.
 		! -path "./.venv/*" \
 		! -path "./node_modules/*" \
 		-exec sh -c 'jq empty "{}" > /dev/null 2>&1 || (echo "Invalid JSON: {}" && exit 1)' \;
+
+.PHONY: check/changelog
+check/changelog: ## Check CHANGELOG.md and the changelog.d entries follow Keep a Changelog.
+	@uv run --no-project python scripts/changelog.py check
+
+.PHONY: changelog
+changelog: ## Print [Unreleased] as the next version will show it, changelog.d entries folded in.
+	@uv run --no-project python scripts/changelog.py render
 
 .DEFAULT_GOAL := help
 .PHONY: help
