@@ -22,7 +22,8 @@ import textwrap
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
-from urllib.parse import unquote, urlparse
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -207,8 +208,12 @@ class FfmpegEncoder:
 
 
 def url_to_path(url: str) -> Path:
+    """The local path of a file:// address, with the drive letter or network share kept on Windows."""
     parsed = urlparse(url)
-    return Path(unquote(parsed.path)) if parsed.scheme == "file" else Path(url)
+    if parsed.scheme != "file":
+        return Path(url)
+    path = parsed.path if parsed.netloc in ("", "localhost") else f"//{parsed.netloc}{parsed.path}"
+    return Path(url2pathname(path))
 
 
 def slate_text(clip: dict[str, Any]) -> dict[str, str]:
