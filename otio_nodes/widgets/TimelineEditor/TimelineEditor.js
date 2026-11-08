@@ -30,7 +30,7 @@ import {
   totalFrames,
   trimClip,
   updateClip,
-} from './_ops.js?v=fb8a0541';
+} from './_ops.js?v=f0a0f916';
 import {
   BAND_HEIGHT,
   EDGE_PX,
@@ -42,15 +42,15 @@ import {
   SHOT_LANE_HEIGHT,
   SNAP_PX,
   ensureStyles,
-} from './_styles.js?v=fb8a0541';
-import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=fb8a0541';
-import { el, readableOn } from './_dom.js?v=fb8a0541';
-import { createViewer } from './_viewer.js?v=fb8a0541';
-import { createAudio } from './_audio.js?v=fb8a0541';
-import { createWaveforms } from './_waveform.js?v=fb8a0541';
-import { FOLDER_PATH, icon } from './_icons.js?v=fb8a0541';
-import { createTooltip } from './_tooltip.js?v=fb8a0541';
-import { classifyIncoming, heldEntry, takePreviews } from './_echo.js?v=fb8a0541';
+} from './_styles.js?v=f0a0f916';
+import { clamp, formatSeconds, frameToTimecode, rulerStepFrames } from './_time.js?v=f0a0f916';
+import { el, readableOn } from './_dom.js?v=f0a0f916';
+import { createViewer } from './_viewer.js?v=f0a0f916';
+import { createAudio } from './_audio.js?v=f0a0f916';
+import { createWaveforms } from './_waveform.js?v=f0a0f916';
+import { FOLDER_PATH, icon } from './_icons.js?v=f0a0f916';
+import { createTooltip } from './_tooltip.js?v=f0a0f916';
+import { classifyIncoming, heldEntry, takePreviews } from './_echo.js?v=f0a0f916';
 
 const WIDGET_VERSION = '0.2.0';
 const sameModel = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -443,14 +443,13 @@ export default function TimelineEditor(container, props) {
     const head = el('div', { class: 'otl-head', style: `width:${HEAD_WIDTH}px; height:${rowHeight}px;` }, [
       el('span', { class: 'otl-head-name', title: track.name, text: track.name }),
     ]);
-    if (track.kind === 'audio') {
-      // Mute silences the track in playback only. It is not saved to the OTIO.
-      const mute = el('button', { class: `otl-mute${track.muted ? ' on' : ''}`, type: 'button', onclick: () => toggleMute(track) });
-      mute.appendChild(icon(track.muted ? 'volumeOff' : 'volume', 14));
-      tip.attach(mute, track.muted ? 'Unmute this track' : 'Mute this track in playback');
-      head.appendChild(mute);
-    }
-    return el('div', { class: `otl-row${track.muted ? ' muted' : ''}` }, [head, lane]);
+    // Mute silences the track's sound in playback only. It is not saved to the OTIO.
+    const mute = el('button', { class: `otl-mute${track.muted ? ' on' : ''}`, type: 'button', onclick: () => toggleMute(track) });
+    mute.appendChild(icon(track.muted ? 'volumeOff' : 'volume', 14));
+    tip.attach(mute, track.muted ? 'Unmute this track' : "Mute this track's sound in playback");
+    head.appendChild(mute);
+    // A muted video track still shows its shots, so only audio rows are dimmed
+    return el('div', { class: `otl-row${track.muted && track.kind === 'audio' ? ' muted' : ''}` }, [head, lane]);
   }
 
   function bandRow(label, bands, laneWidth) {

@@ -442,7 +442,7 @@ test('muting a track only marks that track, and unmuting removes the mark', () =
   assert.equal(setTrackMuted(m, 'no-such-track', true), null);
 });
 
-test('only unmuted, enabled, linked audio clips under the playhead are heard', () => {
+test('only unmuted, enabled, linked clips under the playhead are heard', () => {
   const m = model();
   const track = m.tracks.find((t) => t.role === 'dialogue');
   const clip = track.clips[0];
@@ -465,7 +465,13 @@ test('only unmuted, enabled, linked audio clips under the playhead are heard', (
   const shot = m.tracks[0].clips[0];
   shot.media = { url: '{inputs}/plate.mov', start: 0, duration: null, key: '' };
   m.previews['{inputs}/plate.mov'] = 'http://x/plate.mp4';
-  assert.deepEqual(audibleAt(m, shot.start + 1), [], 'video tracks are not played as sound');
+  assert.deepEqual(
+    audibleAt(m, shot.start + 1).map((h) => h.url),
+    ['http://x/plate.mp4'],
+    'a linked movie on a video track is heard',
+  );
+  m.tracks[0].muted = true;
+  assert.deepEqual(audibleAt(m, shot.start + 1), [], 'a muted video track is silent');
 });
 
 test('a linked clip cannot be trimmed past the end of its file', () => {

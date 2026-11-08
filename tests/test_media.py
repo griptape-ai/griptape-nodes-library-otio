@@ -479,6 +479,59 @@ def test_viewer_proxy_from_real_ffmpeg_reports_progress_and_keeps_the_length(tmp
     assert seen and seen[-1] > 0.9 and seen == sorted(seen), "progress only goes forward and reaches the end"
 
 
+def test_the_viewer_copy_of_a_movie_keeps_its_sound(tmp_path):
+    from otio_nodes.media import FfmpegEncoder, make_viewer_proxy, viewer_proxy_path
+
+    source = tmp_path / "plate.mov"
+    try:
+        encoder = FfmpegEncoder()
+        encoder._run(
+            [
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=size=320x240:rate=24:duration=1",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=440:duration=1",
+                "-pix_fmt",
+                "yuv420p",
+                "-shortest",
+                str(source),
+            ]  # fmt: skip
+        )
+        from static_ffmpeg import run  # type: ignore[import-untyped]
+
+        ffprobe = str(run.get_or_fetch_platform_executables_else_raise()[1])
+    except (ValueError, ImportError):
+        pytest.skip("ffmpeg is not available")
+    target = viewer_proxy_path(source, tmp_path / "previews")
+    make_viewer_proxy(source, target, encoder)
+    streams = subprocess.run(
+        [ffprobe, "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(target)],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    assert sorted(streams) == ["audio", "video"]
+
+
+def test_a_movie_whose_sound_cannot_be_converted_still_gets_a_silent_viewer_copy(tmp_path):
+    from otio_nodes.media import FfmpegEncoder
+
+    calls: list[list[str]] = []
+
+    class SoundFails(FfmpegEncoder):
+        def _run_with_progress(self, args, on_progress, seconds):
+            calls.append(args)
+            if "0:a:0?" in args:
+                raise ValueError("ffmpeg failed: bad audio")
+
+    SoundFails(ffmpeg="ffmpeg").proxy(tmp_path / "a.mov", tmp_path / "a.mp4")
+    assert len(calls) == 2 and "-an" in calls[1] and calls[1][-1] == str(tmp_path / "a.mp4")
+
+
 def test_audio_files_get_an_m4a_viewer_copy_that_keeps_the_length(tmp_path):
     from otio_nodes.media import FfmpegEncoder, ffprobe_seconds, make_viewer_proxy, viewer_proxy_path
 
