@@ -370,6 +370,18 @@ def unpreviewed_links(model: dict[str, Any], preview_keys: tuple[str, ...]) -> s
     }
 
 
+def add_preview_entries(model: dict[str, Any], found: dict[str, dict[str, Any]]) -> None:
+    """Add {preview key: {address: entry}} to the model, skipping addresses it already has under any of those keys.
+
+    A preview job may have finished for an address since `found` was worked out, and its result must not be undone.
+    """
+    known = {address for key in found for address in (model.get(key) or {})}
+    for key, entries in found.items():
+        for address, entry in entries.items():
+            if address not in known:
+                model.setdefault(key, {})[address] = entry
+
+
 def unfound_links(addresses: set[str], resolve: Callable[[str], Path]) -> dict[str, str]:
     """Why each address that does not point at a file has no preview, as {address: reason}."""
     reasons: dict[str, str] = {}

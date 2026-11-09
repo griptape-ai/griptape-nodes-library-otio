@@ -28,6 +28,7 @@ from griptape_nodes.traits.options import Options
 from griptape_nodes.traits.widget import Widget
 
 from otio_nodes.media import (
+    add_preview_entries,
     ffprobe_seconds,
     link_media,
     linked_files,
@@ -305,12 +306,8 @@ class TimelineEditor(SuccessFailureNode):
         errors = unfound_links(missing - previews.keys() - preparing.keys(), self._resolve_media)
         if not previews and not preparing and not errors:
             return
-        updated = copy.deepcopy(timeline)
-        for key, found in (("previews", previews), ("preparing", preparing), ("preview_errors", errors)):
-            if found:
-                updated.setdefault(key, {}).update(found)
-        self.set_parameter_value("edited_timeline", updated)
-        self.publish_update_to_parameter("edited_timeline", updated)
+        found = {"previews": previews, "preparing": preparing, "preview_errors": errors}
+        self._patch_timeline(lambda t: add_preview_entries(t, found))
 
     def _start_preview(self, address: str, path: Path, target: Path) -> None:
         with self._preview_lock:

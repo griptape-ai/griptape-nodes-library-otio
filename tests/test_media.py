@@ -450,6 +450,21 @@ def test_unpreviewed_links_are_typed_addresses_the_viewer_has_no_entry_for():
     assert unpreviewed_links(model, ("previews", "preparing", "preview_errors")) == {"file:///C:/b.mp4"}
 
 
+def test_add_preview_entries_never_undoes_what_a_preview_job_already_stored():
+    from otio_nodes.media import add_preview_entries
+
+    model = {"previews": {"other.mp4": "http://x/other", "new.mp4": "http://x/done"}}
+    add_preview_entries(
+        model,
+        {"previews": {}, "preparing": {"new.mp4": 0.0, "fresh.mp4": 0.0}, "preview_errors": {"bad.mp4": "nope"}},
+    )
+    assert model == {
+        "previews": {"other.mp4": "http://x/other", "new.mp4": "http://x/done"},
+        "preparing": {"fresh.mp4": 0.0},
+        "preview_errors": {"bad.mp4": "nope"},
+    }, "a finished job's URL stays, and other clips' entries are untouched"
+
+
 def test_unfound_links_say_why_a_typed_address_has_no_file(tmp_path):
     from otio_nodes.media import unfound_links
 
