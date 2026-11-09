@@ -244,6 +244,25 @@ def test_url_to_path_decodes_file_urls():
     assert Path(url_to_path("file:///tmp/a%20b.mov")) == Path("/tmp/a b.mov")
 
 
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        ("file:///C:/Users/me/a%20b.wav", r"C:\Users\me\a b.wav"),
+        ("file://localhost/C:/Users/me/a.wav", r"C:\Users\me\a.wav"),
+        ("file://server/share/a.wav", r"\\server\share\a.wav"),
+    ],
+)
+def test_url_to_path_keeps_the_drive_on_windows(monkeypatch, url, expected):
+    import nturl2path
+    from pathlib import PureWindowsPath
+
+    from otio_nodes import media
+
+    monkeypatch.setattr(media, "url2pathname", nturl2path.url2pathname)
+    monkeypatch.setattr(media, "Path", PureWindowsPath)
+    assert media.url_to_path(url) == PureWindowsPath(expected)
+
+
 def test_editing_text_makes_a_new_slate_and_never_overwrites_the_old_one(tmp_path):
     first = ensure_media(make_model(), tmp_path / "media", handle_seconds=1.0, encoder=FakeEncoder())
     old_path = url_to_path(clips(first, "shots")[0]["media"]["url"])
@@ -416,6 +435,52 @@ def test_linked_files_lists_each_existing_linked_file_once(tmp_path):
     )
     found = linked_files(model, lambda url: Path(url) if Path(url).is_absolute() else tmp_path / url)
     assert found == {str(plate): plate}, "nothing for a missing file, a generated slate or a clip with no media"
+
+
+def test_unpreviewed_links_are_typed_addresses_the_viewer_has_no_entry_for():
+    from otio_nodes.media import unpreviewed_links
+
+    link = lambda url, key="": {"media": {"url": url, "start": 0, "duration": None, "key": key}}  # noqa: E731
+    model = one_track_model(
+        link("C:/a.mp4"), link("file:///C:/b.mp4"), link("c.mp4"), link("d.mp4"), link("s.mov", "griptape:slate")
+    )
+    model["previews"] = {"C:/a.mp4": "http://x/a"}
+    model["preparing"] = {"c.mp4": 0.5}
+    model["preview_errors"] = {"d.mp4": "bad"}
+    assert unpreviewed_links(model, ("previews", "preparing", "preview_errors")) == {"file:///C:/b.mp4"}
+
+
+def test_add_preview_entries_never_undoes_what_a_preview_job_already_stored():
+    from otio_nodes.media import add_preview_entries
+
+    model = {"previews": {"other.mp4": "http://x/other", "new.mp4": "http://x/done"}}
+    add_preview_entries(
+        model,
+        {"previews": {}, "preparing": {"new.mp4": 0.0, "fresh.mp4": 0.0}, "preview_errors": {"bad.mp4": "nope"}},
+    )
+    assert model == {
+        "previews": {"other.mp4": "http://x/other", "new.mp4": "http://x/done"},
+        "preparing": {"fresh.mp4": 0.0},
+        "preview_errors": {"bad.mp4": "nope"},
+    }, "a finished job's URL stays, and other clips' entries are untouched"
+
+
+def test_unfound_links_say_why_a_typed_address_has_no_file(tmp_path):
+    from otio_nodes.media import unfound_links
+
+    plate = tmp_path / "plate.mp4"
+    plate.write_bytes(b"x")
+
+    def resolve(url):
+        if url == "broken":
+            raise ValueError("bad macro")
+        return tmp_path / url
+
+    reasons = unfound_links({"plate.mp4", "plaet.mp4", "broken"}, resolve)
+    assert reasons == {
+        "plaet.mp4": f"file not found: {tmp_path / 'plaet.mp4'}",
+        "broken": "the address could not be read (bad macro)",
+    }
 
 
 class ProxyEncoder:

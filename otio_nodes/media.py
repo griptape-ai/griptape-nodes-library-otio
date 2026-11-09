@@ -22,7 +22,8 @@ import textwrap
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
-from urllib.parse import unquote, urlparse
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -212,8 +213,12 @@ class FfmpegEncoder:
 
 
 def url_to_path(url: str) -> Path:
+    """The local path of a file:// address, with the drive letter or network share kept on Windows."""
     parsed = urlparse(url)
-    return Path(unquote(parsed.path)) if parsed.scheme == "file" else Path(url)
+    if parsed.scheme != "file":
+        return Path(url)
+    path = parsed.path if parsed.netloc in ("", "localhost") else f"//{parsed.netloc}{parsed.path}"
+    return Path(url2pathname(path))
 
 
 def slate_text(clip: dict[str, Any]) -> dict[str, str]:
@@ -360,6 +365,43 @@ def linked_files(model: dict[str, Any], resolve: Callable[[str], Path]) -> dict[
             if path.is_file():
                 found[media["url"]] = path
     return found
+
+
+def unpreviewed_links(model: dict[str, Any], preview_keys: tuple[str, ...]) -> set[str]:
+    """The addresses typed in clips that the viewer knows nothing about yet: no preview, none being made, no error."""
+    known = {address for key in preview_keys for address in (model.get(key) or {})}
+    return {
+        clip["media"]["url"]
+        for track in model.get("tracks", [])
+        for clip in track.get("clips", [])
+        if is_linked(clip.get("media")) and clip["media"]["url"] not in known
+    }
+
+
+def add_preview_entries(model: dict[str, Any], found: dict[str, dict[str, Any]]) -> None:
+    """Add {preview key: {address: entry}} to the model, skipping addresses it already has under any of those keys.
+
+    A preview job may have finished for an address since `found` was worked out, and its result must not be undone.
+    """
+    known = {address for key in found for address in (model.get(key) or {})}
+    for key, entries in found.items():
+        for address, entry in entries.items():
+            if address not in known:
+                model.setdefault(key, {})[address] = entry
+
+
+def unfound_links(addresses: set[str], resolve: Callable[[str], Path]) -> dict[str, str]:
+    """Why each address that does not point at a file has no preview, as {address: reason}."""
+    reasons: dict[str, str] = {}
+    for address in addresses:
+        try:
+            path = resolve(address)
+        except Exception as e:  # noqa: BLE001
+            reasons[address] = f"the address could not be read ({e})"
+            continue
+        if not path.is_file():
+            reasons[address] = f"file not found: {path}"
+    return reasons
 
 
 def ffprobe_seconds(path: Path) -> float | None:
