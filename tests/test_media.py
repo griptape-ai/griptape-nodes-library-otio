@@ -437,6 +437,37 @@ def test_linked_files_lists_each_existing_linked_file_once(tmp_path):
     assert found == {str(plate): plate}, "nothing for a missing file, a generated slate or a clip with no media"
 
 
+def test_unpreviewed_links_are_typed_addresses_the_viewer_has_no_entry_for():
+    from otio_nodes.media import unpreviewed_links
+
+    link = lambda url, key="": {"media": {"url": url, "start": 0, "duration": None, "key": key}}  # noqa: E731
+    model = one_track_model(
+        link("C:/a.mp4"), link("file:///C:/b.mp4"), link("c.mp4"), link("d.mp4"), link("s.mov", "griptape:slate")
+    )
+    model["previews"] = {"C:/a.mp4": "http://x/a"}
+    model["preparing"] = {"c.mp4": 0.5}
+    model["preview_errors"] = {"d.mp4": "bad"}
+    assert unpreviewed_links(model, ("previews", "preparing", "preview_errors")) == {"file:///C:/b.mp4"}
+
+
+def test_unfound_links_say_why_a_typed_address_has_no_file(tmp_path):
+    from otio_nodes.media import unfound_links
+
+    plate = tmp_path / "plate.mp4"
+    plate.write_bytes(b"x")
+
+    def resolve(url):
+        if url == "broken":
+            raise ValueError("bad macro")
+        return tmp_path / url
+
+    reasons = unfound_links({"plate.mp4", "plaet.mp4", "broken"}, resolve)
+    assert reasons == {
+        "plaet.mp4": f"file not found: {tmp_path / 'plaet.mp4'}",
+        "broken": "the address could not be read (bad macro)",
+    }
+
+
 class ProxyEncoder:
     def proxy(self, source, target, on_progress=None, seconds=None):
         for done in (0.25, 1.0):

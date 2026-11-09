@@ -359,6 +359,31 @@ def linked_files(model: dict[str, Any], resolve: Callable[[str], Path]) -> dict[
     return found
 
 
+def unpreviewed_links(model: dict[str, Any], preview_keys: tuple[str, ...]) -> set[str]:
+    """The addresses typed in clips that the viewer knows nothing about yet: no preview, none being made, no error."""
+    known = {address for key in preview_keys for address in (model.get(key) or {})}
+    return {
+        clip["media"]["url"]
+        for track in model.get("tracks", [])
+        for clip in track.get("clips", [])
+        if is_linked(clip.get("media")) and clip["media"]["url"] not in known
+    }
+
+
+def unfound_links(addresses: set[str], resolve: Callable[[str], Path]) -> dict[str, str]:
+    """Why each address that does not point at a file has no preview, as {address: reason}."""
+    reasons: dict[str, str] = {}
+    for address in addresses:
+        try:
+            path = resolve(address)
+        except Exception as e:  # noqa: BLE001
+            reasons[address] = f"the address could not be read ({e})"
+            continue
+        if not path.is_file():
+            reasons[address] = f"file not found: {path}"
+    return reasons
+
+
 def ffprobe_seconds(path: Path) -> float | None:
     """The length of a media file in seconds, or None if it cannot be measured (a still image, or no ffprobe)."""
     try:

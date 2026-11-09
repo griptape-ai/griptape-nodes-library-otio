@@ -33,6 +33,8 @@ from otio_nodes.media import (
     linked_files,
     make_viewer_proxy,
     restore_linked_urls,
+    unfound_links,
+    unpreviewed_links,
     url_to_path,
     viewer_proxy_path,
 )
@@ -227,6 +229,8 @@ class TimelineEditor(SuccessFailureNode):
                 self._open()
         elif name == "edited_timeline" and isinstance(value, dict) and value.get("reload"):
             self._reload_requested(value)
+        elif name == "edited_timeline" and isinstance(value, dict) and value.get("tracks"):
+            self._preview_new_links(value)
         elif name == "media_file" and value:
             self._link_selected(str(value).strip())
         elif name == PLACEHOLDER_MEDIA:
@@ -264,10 +268,22 @@ class TimelineEditor(SuccessFailureNode):
         result = copy.deepcopy(timeline)
         for key in PREVIEW_KEYS:
             result.pop(key, None)
+        previews, preparing = self._find_previews(result)
+        for key, found in (("previews", previews), ("preparing", preparing)):
+            if found:
+                result[key] = found
+        return result
+
+    def _find_previews(
+        self, timeline: dict[str, Any], only: set[str] | None = None
+    ) -> tuple[dict[str, str], dict[str, float]]:
+        """URLs of viewer copies that exist, and the addresses whose copies were just started."""
         folder = Path(File(PREVIEW_FOLDER).resolve())
         previews: dict[str, str] = {}
         preparing: dict[str, float] = {}
-        for address, path in linked_files(result, self._resolve_media).items():
+        for address, path in linked_files(timeline, self._resolve_media).items():
+            if only is not None and address not in only:
+                continue
             try:
                 target = viewer_proxy_path(path, folder)
             except OSError:
@@ -278,10 +294,23 @@ class TimelineEditor(SuccessFailureNode):
             else:
                 preparing[address] = 0.0
                 self._start_preview(address, path, target)
-        for key, found in (("previews", previews), ("preparing", preparing)):
+        return previews, preparing
+
+    def _preview_new_links(self, timeline: dict[str, Any]) -> None:
+        """Give the viewer a preview for media just typed in the editor, leaving everything else as it is."""
+        missing = unpreviewed_links(timeline, PREVIEW_KEYS)
+        if not missing:
+            return
+        previews, preparing = self._find_previews(timeline, missing)
+        errors = unfound_links(missing - previews.keys() - preparing.keys(), self._resolve_media)
+        if not previews and not preparing and not errors:
+            return
+        updated = copy.deepcopy(timeline)
+        for key, found in (("previews", previews), ("preparing", preparing), ("preview_errors", errors)):
             if found:
-                result[key] = found
-        return result
+                updated.setdefault(key, {}).update(found)
+        self.set_parameter_value("edited_timeline", updated)
+        self.publish_update_to_parameter("edited_timeline", updated)
 
     def _start_preview(self, address: str, path: Path, target: Path) -> None:
         with self._preview_lock:
