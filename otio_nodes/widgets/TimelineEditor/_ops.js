@@ -397,12 +397,13 @@ export function setTrackMuted(model, trackId, muted) {
   return next;
 }
 
-// The clips that should be heard at `frame`: enabled clips on audio tracks that are not muted and have a linked file
-// the browser can play (`previews` maps what was typed in the clip to a URL). Returns [{clip, url}].
+// The clips that should be heard at `frame`: enabled clips on tracks that are not muted and have a linked file the
+// browser can play (`previews` maps what was typed in the clip to a URL). A linked movie is heard through its viewer
+// copy, which keeps the movie's sound. Returns [{clip, url}].
 export function audibleAt(model, frame) {
   const heard = [];
   for (const track of model.tracks) {
-    if (track.kind !== 'audio' || track.muted) continue;
+    if (track.muted) continue;
     for (const clip of track.clips) {
       if (clip.enabled === false || clip.start > frame || frame >= endOf(clip)) continue;
       const url = isLinked(clip.media) && model.previews ? model.previews[clip.media.url] : '';

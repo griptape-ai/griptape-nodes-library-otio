@@ -1,8 +1,8 @@
-// Sound for the editor: plays the audio files linked to clips on the audio tracks while the timeline plays. Each clip
-// that is sounding gets its own audio element. Only linked files make sound, because the placeholder audio is silent.
-// A muted track is skipped. Nothing plays while paused or scrubbing.
+// Sound for the editor: plays the files linked to clips, audio and movies alike, while the timeline plays. Each clip
+// that is sounding gets its own audio element, and the viewer's video stays muted. Only linked files make sound,
+// because the placeholder media is silent. A muted track is skipped. Nothing plays while paused or scrubbing.
 
-import { audibleAt } from './_ops.js?v=fb8a0541';
+import { audibleAt } from './_ops.js?v=f0a0f916';
 
 const MAX_DRIFT = 0.5; // seconds a playing clip may be off before it is pulled back
 const MIN_SEEK_GAP = 1500; // milliseconds between corrections, so seeks never pile up
@@ -33,6 +33,11 @@ export function createAudio(doc) {
       const found = player(clip, url);
       const { audio } = found;
       const time = ((clip.media.start || 0) + (frame - clip.start)) / rate;
+      if (Number.isFinite(audio.duration) && time >= audio.duration - 0.04) {
+        // past the end of the file, or a still image: nothing to hear, and seeking back would restart it every frame
+        if (!audio.paused) audio.pause();
+        continue;
+      }
       const off = Math.abs(audio.currentTime - time);
       if (audio.paused) {
         if (off > 0.05 && !audio.seeking) {

@@ -32,6 +32,9 @@ SLATE_SIZE = (1280, 720)
 AUDIO_EXTENSIONS = (".wav", ".wave", ".mp3", ".aif", ".aiff", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma")
 SILENCE_KEY = f"{MEDIA_KEY_PREFIX}silence"
 DEFAULT_HANDLE_SECONDS = 10.0
+VIEWER_PROXY_FORMAT = (
+    2  # part of each video viewer copy's name, so changing how they are made gives each file a new one
+)
 FONT_CANDIDATES = (
     "/System/Library/Fonts/Helvetica.ttc",
     "/System/Library/Fonts/Supplemental/Arial.ttf",
@@ -128,17 +131,19 @@ class FfmpegEncoder:
         on_progress: Callable[[float], None] | None = None,
         seconds: float | None = None,
     ) -> None:
-        """A small copy of a video for the editor's viewer: 720p H.264 with a keyframe every half second, no B-frames
-        and no audio. Browsers seek in it without trouble, which not every camera or generated file allows."""
-        self._run_with_progress(
-            [
-                "-i", str(source), "-an", "-vf", "scale=-2:'min(720,ih)'", "-c:v", "libx264", "-preset", "veryfast",
-                "-crf", "26", "-pix_fmt", "yuv420p", "-g", "12", "-keyint_min", "12", "-sc_threshold", "0", "-bf", "0",
-                "-movflags", "+faststart", str(target),
-            ],
-            on_progress,
-            seconds,
-        )  # fmt: skip
+        """A small copy of a video for the editor's viewer: 720p H.264 with a keyframe every half second and no
+        B-frames, plus the first audio stream as AAC when there is one. Browsers seek in it without trouble, which not
+        every camera or generated file allows. Sound that ffmpeg cannot convert is left out, so the picture still
+        gets a copy."""
+        video = [
+            "-vf", "scale=-2:'min(720,ih)'", "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-pix_fmt",
+            "yuv420p", "-g", "12", "-keyint_min", "12", "-sc_threshold", "0", "-bf", "0", "-movflags", "+faststart",
+        ]  # fmt: skip
+        sound = ["-map", "0:V:0", "-map", "0:a:0?", "-c:a", "aac", "-b:a", "160k"]
+        try:
+            self._run_with_progress(["-i", str(source), *sound, *video, str(target)], on_progress, seconds)
+        except ValueError:
+            self._run_with_progress(["-i", str(source), "-an", *video, str(target)], on_progress, seconds)
 
     def audio_proxy(
         self,
@@ -310,11 +315,14 @@ def is_linked(media: dict[str, Any] | None) -> bool:
 
 
 def viewer_proxy_path(source: Path, folder: Path) -> Path:
-    """Where the viewer copy of a video lives. The name holds a hash of the source's path, size and time, so a changed
-    file gets its own copy and an existing copy is never written over."""
+    """Where the viewer copy of a video lives. The name holds a hash of the source's path, size and time (and, for a
+    video, `VIEWER_PROXY_FORMAT`), so a changed file gets its own copy and an existing copy is never written over."""
     info = source.stat()
-    token = hashlib.sha1(f"{source.resolve()}|{info.st_size}|{info.st_mtime_ns}".encode()).hexdigest()[:10]  # noqa: S324
     suffix = ".m4a" if source.suffix.lower() in AUDIO_EXTENSIONS else ".mp4"
+    stamp = f"{source.resolve()}|{info.st_size}|{info.st_mtime_ns}"
+    if suffix == ".mp4":
+        stamp += f"|{VIEWER_PROXY_FORMAT}"
+    token = hashlib.sha1(stamp.encode()).hexdigest()[:10]  # noqa: S324
     return folder / f"{source.stem}_{token}{suffix}"
 
 
