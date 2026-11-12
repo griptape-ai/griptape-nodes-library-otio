@@ -10,7 +10,8 @@ A Griptape Nodes library that reads a Fountain script, builds an OpenTimelineIO 
 
 ## Commands
 
-- `make install/dev` installs dev dependencies.
+- `make install/dev` installs dev dependencies into `.venv-dev`. Never run plain `uv sync` or `uv run`: they use `.venv`, which belongs to the engine, and dev packages there make the library load FLAWED. Use `make` targets, or prefix `UV_PROJECT_ENVIRONMENT=.venv-dev`.
+- `make test` runs the Python tests.
 - `make check` runs ruff format, ruff lint, pyright and JSON validation.
 - `make deps/sync` copies `pip_dependencies` from `pyproject.toml` into the library JSON. Run it after changing dependencies.
 

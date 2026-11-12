@@ -134,7 +134,12 @@ Next: check the widget in the Griptape editor.
 
 ```bash
 make install/dev
-uv run pytest
-node --test tests/js/
+make test
 make check
 ```
+
+`make check` includes the widget's JavaScript tests. Use the `make` targets rather than
+`uv sync --group dev` or `uv run` directly. Dev tooling belongs in `.venv-dev`, and plain `uv`
+would install it into the `.venv` the engine builds beside the manifest, which makes the library
+load as FLAWED. See [CONTRIBUTING.md](CONTRIBUTING.md#two-virtual-environments) for why, and for
+IDE setup.
